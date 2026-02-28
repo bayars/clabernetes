@@ -107,14 +107,14 @@ func TestEnforceDNSLabelConvention(t *testing.T) {
 			expected: "afinename",
 		},
 		{
-			name:     "ending-with-non-alpha",
+			name:     "ending-with-digit",
 			in:       "afinename1",
-			expected: "afinenamez",
+			expected: "afinename1",
 		},
 		{
-			name:     "starting-with-non-alpha",
+			name:     "starting-with-digit",
 			in:       "1afinename",
-			expected: "zafinename",
+			expected: "1afinename",
 		},
 		{
 			name:     "special-chars",
@@ -122,9 +122,19 @@ func TestEnforceDNSLabelConvention(t *testing.T) {
 			expected: "afine-name",
 		},
 		{
-			name:     "ending-starting-with-non-alpha-special-chars",
+			name:     "special-chars-with-digit-boundaries",
 			in:       "1afine.name2",
-			expected: "zafine-namez",
+			expected: "1afine-name2",
+		},
+		{
+			name:     "starting-with-hyphen",
+			in:       "-afinename",
+			expected: "zafinename",
+		},
+		{
+			name:     "ending-with-hyphen",
+			in:       "afinename-",
+			expected: "afinenamez",
 		},
 	}
 

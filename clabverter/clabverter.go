@@ -402,6 +402,8 @@ func (c *Clabverter) load() error {
 		)
 	}
 
+	c.destinationNamespace = clabernetesutilkubernetes.EnforceDNSLabelConvention(c.destinationNamespace)
+
 	if len(c.clabConfig.Topology.Nodes) == 0 {
 		c.logger.Info("no nodes in topology file, nothing to do...")
 
