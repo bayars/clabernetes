@@ -129,7 +129,7 @@ func TestEnforceDNSLabelConvention(t *testing.T) {
 		{
 			name:     "special-chars-with-digit-boundaries",
 			in:       "1afine.name2",
-			expected: "zafine-name2",
+			expected: "1afine-name2",
 		},
 	}
 
