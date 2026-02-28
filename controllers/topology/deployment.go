@@ -117,10 +117,14 @@ func (r *DeploymentReconciler) Render(
 ) *k8sappsv1.Deployment {
 	owningTopologyName := owningTopology.GetName()
 
-	deploymentName := fmt.Sprintf("%s-%s", owningTopologyName, nodeName)
+	safeNodeName := clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName)
+
+	deploymentName := clabernetesutilkubernetes.SafeConcatNameKubernetes(
+		owningTopologyName, safeNodeName,
+	)
 
 	if ResolveTopologyRemovePrefix(owningTopology) {
-		deploymentName = nodeName
+		deploymentName = safeNodeName
 	}
 
 	configVolumeName := fmt.Sprintf("%s-config", owningTopologyName)

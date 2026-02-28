@@ -84,7 +84,7 @@ func Entrypoint() *cli.App {
 			},
 			&cli.StringFlag{
 				Name:     containerlabVersion,
-				Usage:    "an explicit containerlab version to use (example: 0.51.1)",
+				Usage:    "an explicit containerlab version to use (example: 0.73.0)",
 				Required: false,
 				Value:    "",
 			},

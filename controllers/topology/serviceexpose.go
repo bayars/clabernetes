@@ -13,6 +13,7 @@ import (
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
 	clabernetesutilcontainerlab "github.com/srl-labs/clabernetes/util/containerlab"
+	clabernetesutilkubernetes "github.com/srl-labs/clabernetes/util/kubernetes"
 	k8scorev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
@@ -142,10 +143,14 @@ func (r *ServiceExposeReconciler) Render(
 
 	owningTopologyName := owningTopology.GetName()
 
-	serviceName := fmt.Sprintf("%s-%s", owningTopologyName, nodeName)
+	safeNodeName := clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName)
+
+	serviceName := clabernetesutilkubernetes.SafeConcatNameKubernetes(
+		owningTopologyName, safeNodeName,
+	)
 
 	if ResolveTopologyRemovePrefix(owningTopology) {
-		serviceName = nodeName
+		serviceName = safeNodeName
 	}
 
 	service := r.renderServiceBase(
@@ -209,10 +214,14 @@ func (r *ServiceExposeReconciler) renderServiceBase(
 
 	annotations, globalLabels := r.configManagerGetter().GetAllMetadata()
 
-	deploymentName := fmt.Sprintf("%s-%s", owningTopologyName, nodeName)
+	safeNodeName := clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName)
+
+	deploymentName := clabernetesutilkubernetes.SafeConcatNameKubernetes(
+		owningTopologyName, safeNodeName,
+	)
 
 	if ResolveTopologyRemovePrefix(owningTopology) {
-		deploymentName = nodeName
+		deploymentName = safeNodeName
 	}
 
 	selectorLabels := map[string]string{

@@ -103,9 +103,11 @@ func (r *PersistentVolumeClaimReconciler) Render(
 ) *k8scorev1.PersistentVolumeClaim {
 	owningTopologyName := owningTopology.GetName()
 
+	safeNodeName := clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName)
+
 	pvc := r.renderPVCBase(
 		owningTopology,
-		fmt.Sprintf("%s-%s", owningTopologyName, nodeName),
+		clabernetesutilkubernetes.SafeConcatNameKubernetes(owningTopologyName, safeNodeName),
 		nodeName,
 	)
 
@@ -195,10 +197,14 @@ func (r *PersistentVolumeClaimReconciler) renderPVCBase(
 
 	annotations, globalLabels := r.configManagerGetter().GetAllMetadata()
 
-	deploymentName := fmt.Sprintf("%s-%s", owningTopologyName, nodeName)
+	safeNodeName := clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName)
+
+	deploymentName := clabernetesutilkubernetes.SafeConcatNameKubernetes(
+		owningTopologyName, safeNodeName,
+	)
 
 	if ResolveTopologyRemovePrefix(owningTopology) {
-		deploymentName = nodeName
+		deploymentName = safeNodeName
 	}
 
 	selectorLabels := map[string]string{

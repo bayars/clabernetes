@@ -47,7 +47,7 @@ func TestClabvert(t *testing.T) {
 			imagePullSecrets:    "",
 			disableExpose:       true,
 			naming:              "non-prefixed",
-			containerlabVersion: "0.51.0",
+			containerlabVersion: "0.73.0",
 		},
 		{
 			name:                 "inline-startup-config",

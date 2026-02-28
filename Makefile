@@ -93,6 +93,20 @@ build-launcher: ## Builds the clabernetes launcher container; typically built vi
 build-clabverter: ## Builds the clabverter container; typically built via devspace, but this is a handy shortcut for one offs.
 	docker build -t ghcr.io/srl-labs/clabernetes/clabverter:latest -f ./build/clabverter.Dockerfile .
 
+build-clabverter-bin: ## Builds the clabverter local binary to ./bin/clabverter
+	CGO_ENABLED=0 go build \
+		-ldflags "-s -w -X github.com/srl-labs/clabernetes/constants.Version=$(VERSION)" \
+		-trimpath \
+		-o bin/clabverter \
+		./cmd/clabverter/main.go
+
+build-manager-bin: ## Builds the clabernetes manager local binary to ./bin/clabernetes-manager
+	CGO_ENABLED=0 go build \
+		-ldflags "-s -w -X github.com/srl-labs/clabernetes/constants.Version=$(VERSION)" \
+		-trimpath \
+		-o bin/clabernetes-manager \
+		./cmd/clabernetes/main.go
+
 push-manager:
 	docker push $(REGISTRY)/clabernetes-manager:$(VERSION)
 

@@ -122,6 +122,16 @@ func TestEnforceDNSLabelConvention(t *testing.T) {
 			expected: "1afinename",
 		},
 		{
+			name:     "underscores",
+			in:       "advanced_bgp_srsim",
+			expected: "advanced-bgp-srsim",
+		},
+		{
+			name:     "uppercase",
+			in:       "R4",
+			expected: "r4",
+		},
+		{
 			name:     "special-chars",
 			in:       "afine.name",
 			expected: "afine-name",

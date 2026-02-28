@@ -46,7 +46,7 @@ spec:
   deployment:
     containerlabDebug: null
     containerlabTimeout: ""
-    containerlabVersion: 0.51.0
+    containerlabVersion: 0.73.0
     extraEnv: null
     filesFromConfigMap:
       srl1:

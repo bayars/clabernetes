@@ -666,7 +666,7 @@ func TestRenderDeployment(t *testing.T) {
 				},
 				Spec: clabernetesapisv1alpha1.TopologySpec{
 					Deployment: clabernetesapisv1alpha1.Deployment{
-						ContainerlabVersion: "0.51.1",
+						ContainerlabVersion: "0.73.0",
 					},
 					Definition: clabernetesapisv1alpha1.Definition{
 						Containerlab: `---
