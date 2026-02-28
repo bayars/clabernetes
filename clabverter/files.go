@@ -186,7 +186,11 @@ func (c *Clabverter) handleStartupConfigs() error {
 			return err
 		}
 
-		configMapName := fmt.Sprintf("%s-%s-startup-config", c.clabConfig.Name, nodeName)
+		configMapName := clabernetesutilkubernetes.SafeConcatNameKubernetes(
+			clabernetesutilkubernetes.EnforceDNSLabelConvention(c.clabConfig.Name),
+			clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName),
+			"startup-config",
+		)
 
 		var rendered bytes.Buffer
 
@@ -545,7 +549,11 @@ func (c *Clabverter) handleExtraFiles() error {
 			return err
 		}
 
-		configMapName := fmt.Sprintf("%s-%s-files", c.clabConfig.Name, nodeName)
+		configMapName := clabernetesutilkubernetes.SafeConcatNameKubernetes(
+			clabernetesutilkubernetes.EnforceDNSLabelConvention(c.clabConfig.Name),
+			clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName),
+			"files",
+		)
 
 		templateVars := extraFilesConfigMapTemplateVars{
 			Name:       configMapName,

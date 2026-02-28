@@ -1,9 +1,12 @@
 .DEFAULT_GOAL := help
 
+REGISTRY = "ghcr.io/srl-labs/clabernetes"
+VERSION = "latest"
+
 ifeq (set-chart-versions,$(firstword $(MAKECMDGOALS)))
-  # use the rest as arguments for "set-chart-versions" directive
-  BUMP_CHART_VERSION_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-  $(eval $(BUMP_CHART_VERSION_ARGS):;@:)
+	# use the rest as arguments for "set-chart-versions" directive
+	BUMP_CHART_VERSION_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+	$(eval $(BUMP_CHART_VERSION_ARGS):;@:)
 endif
 
 help:
@@ -28,7 +31,7 @@ test-race: ## Run unit tests with race flag
 test-e2e: ## Run e2e tests
 	gotestsum --format testname --hide-summary=skipped -- -race -coverprofile=cover.out ./e2e/...
 
-cov:  ## Produce html coverage report; removes all the generated bits for sanity reasons
+cov:	## Produce html coverage report; removes all the generated bits for sanity reasons
 	cat cover.out | grep -v "/generated/" | grep -v "zz_generated.deepcopy.go" > cover.out.clean && rm cover.out && mv cover.out.clean cover.out
 	go tool cover -html=cover.out
 
@@ -81,7 +84,7 @@ delete-generated: ## Deletes all zz_*.go (generated) files, and crds
 	rm assets/crd/*.yaml || true
 	rm -rf generated/*
 
-build-manager: ## Builds the clabernetes manager container; typically built via devspace, but this is a handy shortcut for one offs.
+build-manager:
 	docker build -t ghcr.io/srl-labs/clabernetes/clabernetes-manager:latest -f ./build/manager.Dockerfile .
 
 build-launcher: ## Builds the clabernetes launcher container; typically built via devspace, but this is a handy shortcut for one offs.
@@ -89,6 +92,15 @@ build-launcher: ## Builds the clabernetes launcher container; typically built vi
 
 build-clabverter: ## Builds the clabverter container; typically built via devspace, but this is a handy shortcut for one offs.
 	docker build -t ghcr.io/srl-labs/clabernetes/clabverter:latest -f ./build/clabverter.Dockerfile .
+
+push-manager:
+	docker push $(REGISTRY)/clabernetes-manager:$(VERSION)
+
+push-launcher:
+	docker push $(REGISTRY)/clabernetes-launcher:$(VERSION)
+
+push-clabverter:
+	docker push $(REGISTRY)/clabverter:$(VERSION)
 
 set-chart-versions: ## Sets the helm chart versions to the given value.
 	./hack/set-chart-versions.sh $(BUMP_CHART_VERSION_ARGS)

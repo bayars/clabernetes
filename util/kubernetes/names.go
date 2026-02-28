@@ -28,7 +28,7 @@ func getDNSLabelConventionPatterns() *validDNSLabelConventionPatterns {
 	validNSLabelConventionPatternsObjOnce.Do(func() {
 		validDNSLabelConventionPatternsObj = &validDNSLabelConventionPatterns{
 			invalidChars:       regexp.MustCompile(`[^a-z0-9\-]`),
-			startsWithNonAlpha: regexp.MustCompile(`^[^a-z0-9]`),
+			startsWithNonAlpha: regexp.MustCompile(`^[^a-z]`),
 			endsWithNonAlpha:   regexp.MustCompile(`[^a-z0-9]$`),
 		}
 	})

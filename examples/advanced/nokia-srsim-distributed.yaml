@@ -21,22 +21,33 @@ spec:
   # Resource configuration - keyed by the PRIMARY containerlab node name (CPM-A)
   # All chassis components share these resources since they run in one pod
   deployment:
+    scheduling:
+      nodeSelector:
+        kubernetes.io/hostname: k8s-worker1
     resources:
       chassis1-cpm-a:
         requests:
-          memory: "8Gi"
-          cpu: "4"
+          memory: "4Gi"
+          cpu: "2"
         limits:
-          memory: "16Gi"
-          cpu: "8"
+          memory: "6Gi"
+          cpu: "4"
+    filesFromConfigMap:
+      chassis1-cpm-a:
+        - filePath: /opt/nokia/sros/license-sros25.txt
+          configMapName: sros-license
+          configMapPath: license-sros25.txt
+  imagePull:
+    insecureRegistries:
+      - 10.0.0.103
   definition:
     containerlab: |
       name: srsim-distributed
       topology:
         kinds:
           nokia_srsim:
-            image: nokia_srsim:25.7.R1
-            license: /opt/nokia/sros/license.txt
+            image: 10.0.0.103/srl/nokia_srsim:25.7.R1
+            license: /opt/nokia/sros/license-sros25.txt
         nodes:
           # CPM-A: Primary control module (slot A)
           # This is the primary - other components reference it via network-mode

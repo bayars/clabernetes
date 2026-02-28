@@ -398,7 +398,7 @@ func (c *Clabverter) load() error {
 	if c.destinationNamespace == "" {
 		c.destinationNamespace = clabernetesutilkubernetes.SafeConcatNameKubernetes(
 			"c9s",
-			c.clabConfig.Name,
+			clabernetesutilkubernetes.EnforceDNSLabelConvention(c.clabConfig.Name),
 		)
 	}
 
@@ -504,7 +504,7 @@ func (c *Clabverter) handleManifest() error {
 	err = t.Execute(
 		&rendered,
 		containerlabTemplateVars{
-			Name:      c.clabConfig.Name,
+			Name:      clabernetesutilkubernetes.EnforceDNSLabelConvention(c.clabConfig.Name),
 			Namespace: c.destinationNamespace,
 			// pad w/ a newline so the template can look prettier :)
 			ClabConfig: "\n" + clabernetesutil.Indent(
