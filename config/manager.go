@@ -53,7 +53,7 @@ func InitManager(
 			kubeClabernetesClient: client,
 			lock:                  &sync.RWMutex{},
 			config: &clabernetesapisv1alpha1.ConfigSpec{
-				InClusterDNSSuffix: clabernetesconstants.KubernetesDefaultInClusterDNSSuffix,
+				InClusterDNSSuffix: detectInClusterDNSSuffix(),
 				Metadata: clabernetesapisv1alpha1.ConfigMetadata{
 					Annotations: nil,
 					Labels:      nil,
@@ -251,6 +251,32 @@ func (m *manager) load(config *clabernetesapisv1alpha1.Config) {
 	}
 
 	m.config = newConfig
+}
+
+// detectInClusterDNSSuffix reads /etc/resolv.conf and extracts the in-cluster DNS suffix
+// from the search domain list (e.g. "svc.cluster.local" or "svc.mycluster.local").
+// Falls back to the hardcoded default if detection fails.
+func detectInClusterDNSSuffix() string {
+	data, err := os.ReadFile("/etc/resolv.conf")
+	if err != nil {
+		return clabernetesconstants.KubernetesDefaultInClusterDNSSuffix
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.HasPrefix(line, "search ") {
+			continue
+		}
+
+		for _, field := range strings.Fields(line)[1:] {
+			if strings.HasPrefix(field, "svc.") {
+				return field
+			}
+		}
+
+		break
+	}
+
+	return clabernetesconstants.KubernetesDefaultInClusterDNSSuffix
 }
 
 func (m *manager) watchConfig() {

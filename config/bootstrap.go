@@ -40,7 +40,7 @@ func bootstrapFromConfigMap( //nolint:gocyclo,funlen,gocognit
 ) (*bootstrapConfig, error) {
 	bc := &bootstrapConfig{
 		mergeMode:               "merge",
-		inClusterDNSSuffix:      clabernetesconstants.KubernetesDefaultInClusterDNSSuffix,
+		inClusterDNSSuffix:      detectInClusterDNSSuffix(),
 		imagePullThroughMode:    clabernetesconstants.ImagePullThroughModeAuto,
 		launcherImage:           os.Getenv(clabernetesconstants.LauncherImageEnv),
 		launcherImagePullPolicy: clabernetesconstants.KubernetesImagePullIfNotPresent,

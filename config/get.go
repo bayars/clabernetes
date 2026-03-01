@@ -99,6 +99,10 @@ func (m *manager) GetInClusterDNSSuffix() string {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 
+	if m.config.InClusterDNSSuffix == "" {
+		return detectInClusterDNSSuffix()
+	}
+
 	return m.config.InClusterDNSSuffix
 }
 
