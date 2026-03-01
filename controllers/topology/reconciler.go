@@ -14,6 +14,7 @@ import (
 	claberneteserrors "github.com/srl-labs/clabernetes/errors"
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
+	clabernetesutilkubernetes "github.com/srl-labs/clabernetes/util/kubernetes"
 	k8sappsv1 "k8s.io/api/apps/v1"
 	k8scorev1 "k8s.io/api/core/v1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1043,10 +1044,14 @@ func (r *Reconciler) reconcileDeploymentsHandleRestarts(
 			reconcileData.ResolvedConfigs[nodeName],
 		)
 
-		deploymentName := fmt.Sprintf("%s-%s", owningTopology.GetName(), nodeName)
+		safeNodeName := clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName)
+
+		deploymentName := clabernetesutilkubernetes.SafeConcatNameKubernetes(
+			owningTopology.GetName(), safeNodeName,
+		)
 
 		if ResolveTopologyRemovePrefix(owningTopology) {
-			deploymentName = nodeName
+			deploymentName = safeNodeName
 		}
 
 		nodeDeployment := &k8sappsv1.Deployment{}

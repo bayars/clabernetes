@@ -6,6 +6,7 @@ import (
 	clabernetesapis "github.com/srl-labs/clabernetes/apis"
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconfig "github.com/srl-labs/clabernetes/config"
+	clabernetesutilkubernetes "github.com/srl-labs/clabernetes/util/kubernetes"
 )
 
 // GetTopologyKind returns the "kind" of topology this CR represents -- typically this will be
@@ -53,10 +54,12 @@ func resolveConnectivityDestination(
 	// inject config manager getter so we can easily test this (and things upstream)
 	configManagerGetter clabernetesconfig.ManagerGetterFunc,
 ) string {
+	safeNodeName := clabernetesutilkubernetes.EnforceDNSLabelConvention(uninterestingEndpointNodeName)
+
 	destination := fmt.Sprintf(
 		"%s-%s-vx.%s.%s",
 		topologyName,
-		uninterestingEndpointNodeName,
+		safeNodeName,
 		namespace,
 		configManagerGetter().GetInClusterDNSSuffix(),
 	)
@@ -64,7 +67,7 @@ func resolveConnectivityDestination(
 	if removeTopologyPrefix {
 		destination = fmt.Sprintf(
 			"%s-vx.%s.%s",
-			uninterestingEndpointNodeName,
+			safeNodeName,
 			namespace,
 			configManagerGetter().GetInClusterDNSSuffix(),
 		)
