@@ -399,7 +399,7 @@ func (r *DeploymentReconciler) renderDeploymentBase(
 					RestartPolicy:      "Always",
 					ServiceAccountName: launcherServiceAccountName(),
 					Volumes:            []k8scorev1.Volume{},
-					Hostname:           nodeName,
+					Hostname:           clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName),
 				},
 			},
 		},
@@ -673,7 +673,7 @@ func (r *DeploymentReconciler) renderDeploymentContainer(
 	}
 
 	container := k8scorev1.Container{
-		Name:       nodeName,
+		Name:       clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName),
 		WorkingDir: "/clabernetes",
 		Image:      image,
 		Command:    []string{"/clabernetes/manager", "launch"},
@@ -1238,7 +1238,10 @@ func (r *DeploymentReconciler) renderDeploymentPersistence(
 			Name: volumeName,
 			VolumeSource: k8scorev1.VolumeSource{
 				PersistentVolumeClaim: &k8scorev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: fmt.Sprintf("%s-%s", owningTopologyName, nodeName),
+					ClaimName: clabernetesutilkubernetes.SafeConcatNameKubernetes(
+						owningTopologyName,
+						clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName),
+					),
 					ReadOnly:  false,
 				},
 			},
