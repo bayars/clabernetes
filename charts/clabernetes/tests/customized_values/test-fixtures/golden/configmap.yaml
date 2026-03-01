@@ -34,7 +34,6 @@ data:
     ---
   privilegedLauncher: "true"
   containerlabDebug: "false"
-  inClusterDNSSuffix: svc.cluster.local
   imagePullThroughMode: auto
   launcherImagePullPolicy: IfNotPresent
   launcherLogLevel: info

@@ -83,8 +83,6 @@ globalConfig:
   # so directly, or use the "overwrite" merge mode.
   mergeMode: merge
 
-  inClusterDNSSuffix: svc.cluster.local
-
   imagePull:
     # imagePullThroughMode defines how the launcher pod tries to pull the image specified in the
     # topology. The options are: "auto" (default), "always", "never". The "auto" option will

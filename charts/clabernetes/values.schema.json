@@ -130,9 +130,6 @@
         "mergeMode": {
           "type": "string"
         },
-        "inClusterDNSSuffix": {
-          "type": "string"
-        },
         "imagePull": {
           "type": "object",
           "properties": {

@@ -45,7 +45,6 @@ data:
   {{- if .Values.globalConfig.deployment.containerlabVersion }}
   containerlabVersion: {{ .Values.globalConfig.deployment.containerlabVersion }}
   {{- end }}
-  inClusterDNSSuffix: {{ .Values.globalConfig.inClusterDNSSuffix }}
   imagePullThroughMode: {{ .Values.globalConfig.imagePull.imagePullThroughMode }}
   {{- if .Values.globalConfig.deployment.launcherImage }}
   launcherImage: {{ .Values.globalConfig.deployment.launcherImage }}
