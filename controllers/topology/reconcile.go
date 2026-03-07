@@ -5,6 +5,7 @@ import (
 
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/util/retry"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
 )
 
@@ -79,19 +80,24 @@ func (c *Controller) Reconcile(
 	if reconcileData.ShouldUpdateResource {
 		// we should update because config hash or something changed, so snag the updated status
 		// data out of the reconcile data, put it in the resource, and push the update
-		err = reconcileData.SetStatus(&topology.Status)
-		if err != nil {
-			c.BaseController.Log.Criticalf(
-				"failed setting object '%s/%s' status, error: %s",
-				topology.Namespace,
-				topology.Name,
-				err,
-			)
+		err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			latest, fetchErr := c.getTopologyFromReq(ctx, req)
+			if fetchErr != nil {
+				return fetchErr
+			}
 
-			return ctrlruntime.Result{}, err
-		}
+			if setErr := reconcileData.SetStatus(&latest.Status); setErr != nil {
+				return setErr
+			}
 
-		err = c.BaseController.Client.Update(ctx, topology)
+			// preserve fields set directly on topology by reconciler methods (e.g.
+			// ReconcileNaming sets RemoveTopologyPrefix; reconcileResources sets Conditions)
+			// that are not carried by ReconcileData.SetStatus.
+			latest.Status.RemoveTopologyPrefix = topology.Status.RemoveTopologyPrefix
+			latest.Status.Conditions = topology.Status.Conditions
+
+			return c.BaseController.Client.Update(ctx, latest)
+		})
 		if err != nil {
 			c.BaseController.Log.Criticalf(
 				"failed updating object '%s/%s' error: %s",

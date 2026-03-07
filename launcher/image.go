@@ -32,6 +32,18 @@ func generateImageRequestCRName(nodeName, imageName string) string {
 }
 
 func (c *clabernetes) image() {
+	if !c.runtime.NeedsImagePullThrough() {
+		c.logger.Info(
+			"container runtime does not need image pull through, skipping export/import...",
+		)
+
+		// in containerd mode, images are already on the host -- but we may still need to
+		// trigger a pull if the image is not present
+		c.imageEnsurePresent()
+
+		return
+	}
+
 	abort, imageManager := c.prepareImagePullThrough()
 	if abort {
 		return
@@ -337,6 +349,69 @@ func (c *clabernetes) waitForImage(
 	)
 }
 
+// imageEnsurePresent is used in containerd mode where we don't need to export/import images,
+// but we still need to ensure the image exists on the node (potentially triggering a pull via
+// ImageRequest CR).
+func (c *clabernetes) imageEnsurePresent() {
+	if c.imagePullThroughMode == clabernetesconstants.ImagePullThroughModeNever {
+		c.logger.Debug("image pull through mode is never, skipping image check...")
+
+		return
+	}
+
+	if c.imageName == "" {
+		c.logger.Warn("node image is unknown, skipping image presence check...")
+
+		return
+	}
+
+	imageManager, err := claberneteslauncherimage.NewManager(
+		c.logger,
+		os.Getenv(clabernetesconstants.LauncherCRIKindEnv),
+	)
+	if err != nil {
+		c.logger.Warnf("failed creating image manager for presence check, err: %s", err)
+
+		return
+	}
+
+	imagePresent, err := imageManager.Present(c.ctx, c.imageName)
+	if err != nil {
+		c.logger.Warnf("failed checking image presence, err: %s", err)
+
+		return
+	}
+
+	if imagePresent {
+		c.logger.Infof("image %q is already present on node", c.imageName)
+
+		return
+	}
+
+	c.logger.Infof("image %q not present on node, requesting pull...", c.imageName)
+
+	configuredPullSecretsBytes, err := os.ReadFile("configured-pull-secrets.yaml")
+	if err != nil {
+		c.logger.Warnf("failed reading pull secrets, err: %s", err)
+
+		return
+	}
+
+	var configuredPullSecrets []string
+
+	err = yaml.Unmarshal(configuredPullSecretsBytes, &configuredPullSecrets)
+	if err != nil {
+		c.logger.Warnf("failed unmarshaling pull secrets, err: %s", err)
+
+		return
+	}
+
+	err = c.requestImagePull(imageManager, configuredPullSecrets)
+	if err != nil {
+		c.logger.Warnf("failed requesting image pull, err: %s", err)
+	}
+}
+
 func (c *clabernetes) imageImport() error {
 	exportCmd := exec.CommandContext(
 		c.ctx,
@@ -358,22 +433,8 @@ func (c *clabernetes) imageImport() error {
 	return nil
 }
 
-func (c *clabernetes) imageCleanup() {
-	c.logger.Debug("running image (docker) cleanup in background...")
+func (c *clabernetes) runtimeCleanup() {
+	c.logger.Debug("running container runtime cleanup in background...")
 
-	exportCmd := exec.CommandContext(
-		c.ctx,
-		"docker",
-		"system",
-		"prune",
-		"--force",
-	)
-
-	exportCmd.Stdout = c.logger
-	exportCmd.Stderr = c.logger
-
-	err := exportCmd.Run()
-	if err != nil {
-		c.logger.Warnf("failed pruning docker daemon, error: %s", err)
-	}
+	c.runtime.Cleanup(c.ctx, c.logger)
 }

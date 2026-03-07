@@ -415,6 +415,23 @@ func (r *DeploymentReconciler) renderDeploymentScheduling(
 	deployment.Spec.Template.Spec.Tolerations = tolerations
 }
 
+// resolveContainerRuntime returns the resolved container runtime for a topology, considering
+// topology-level override, global config, and the default of "docker".
+func (r *DeploymentReconciler) resolveContainerRuntime(
+	owningTopology *clabernetesapisv1alpha1.Topology,
+) string {
+	if owningTopology.Spec.Deployment.ContainerRuntime != "" {
+		return owningTopology.Spec.Deployment.ContainerRuntime
+	}
+
+	globalRuntime := r.configManagerGetter().GetContainerRuntime()
+	if globalRuntime != "" {
+		return globalRuntime
+	}
+
+	return clabernetesconstants.LauncherContainerRuntimeDocker
+}
+
 func (r *DeploymentReconciler) renderDeploymentVolumes( //nolint:funlen
 	deployment *k8sappsv1.Deployment,
 	nodeName,
@@ -422,6 +439,9 @@ func (r *DeploymentReconciler) renderDeploymentVolumes( //nolint:funlen
 	owningTopologyName string,
 	owningTopology *clabernetesapisv1alpha1.Topology,
 ) []k8scorev1.VolumeMount {
+	containerRuntime := r.resolveContainerRuntime(owningTopology)
+	isContainerd := containerRuntime == clabernetesconstants.LauncherContainerRuntimeContainerd
+
 	volumes := []k8scorev1.Volume{
 		{
 			Name: configVolumeName,
@@ -436,17 +456,37 @@ func (r *DeploymentReconciler) renderDeploymentVolumes( //nolint:funlen
 				},
 			},
 		},
-		{
+	}
+
+	// docker EmptyDir volume is only needed in docker (DinD) mode
+	if !isContainerd {
+		volumes = append(volumes, k8scorev1.Volume{
 			Name: "docker",
 			VolumeSource: k8scorev1.VolumeSource{
 				EmptyDir: &k8scorev1.EmptyDirVolumeSource{},
 			},
-		},
+		})
+	}
+
+	// /run/netns hostPath is needed in containerd mode so that named network namespaces
+	// created inside the launcher pod propagate to the host (Bidirectional mount propagation).
+	if isContainerd {
+		volumes = append(volumes, k8scorev1.Volume{
+			Name: "netns",
+			VolumeSource: k8scorev1.VolumeSource{
+				HostPath: &k8scorev1.HostPathVolumeSource{
+					Path: "/run/netns",
+					Type: clabernetesutil.ToPointer(k8scorev1.HostPathDirectoryOrCreate),
+				},
+			},
+		})
 	}
 
 	volumeMountsFromCommonSpec := make([]k8scorev1.VolumeMount, 0)
 
-	criPath, criSubPath := r.renderDeploymentVolumesGetCRISockPath(owningTopology)
+	criPath, criSubPath, criReadOnly := r.renderDeploymentVolumesGetCRISockPath(
+		owningTopology, isContainerd,
+	)
 
 	if criPath != "" && criSubPath != "" {
 		volumes = append(
@@ -466,7 +506,7 @@ func (r *DeploymentReconciler) renderDeploymentVolumes( //nolint:funlen
 			volumeMountsFromCommonSpec,
 			k8scorev1.VolumeMount{
 				Name:     "cri-sock",
-				ReadOnly: true,
+				ReadOnly: criReadOnly,
 				MountPath: fmt.Sprintf(
 					"%s/%s",
 					clabernetesconstants.LauncherCRISockPath,
@@ -475,37 +515,41 @@ func (r *DeploymentReconciler) renderDeploymentVolumes( //nolint:funlen
 				SubPath: criSubPath,
 			},
 		)
+
 	}
 
-	dockerDaemonConfigSecret := owningTopology.Spec.ImagePull.DockerDaemonConfig
-	if dockerDaemonConfigSecret == "" {
-		dockerDaemonConfigSecret = r.configManagerGetter().GetDockerDaemonConfig()
-	}
+	// docker daemon config secret is only relevant for docker mode
+	if !isContainerd {
+		dockerDaemonConfigSecret := owningTopology.Spec.ImagePull.DockerDaemonConfig
+		if dockerDaemonConfigSecret == "" {
+			dockerDaemonConfigSecret = r.configManagerGetter().GetDockerDaemonConfig()
+		}
 
-	if dockerDaemonConfigSecret != "" {
-		volumes = append(
-			volumes,
-			k8scorev1.Volume{
-				Name: "docker-daemon-config",
-				VolumeSource: k8scorev1.VolumeSource{
-					Secret: &k8scorev1.SecretVolumeSource{
-						SecretName: dockerDaemonConfigSecret,
-						DefaultMode: clabernetesutil.ToPointer(
-							int32(clabernetesconstants.PermissionsEveryoneReadWriteOwnerExecute),
-						),
+		if dockerDaemonConfigSecret != "" {
+			volumes = append(
+				volumes,
+				k8scorev1.Volume{
+					Name: "docker-daemon-config",
+					VolumeSource: k8scorev1.VolumeSource{
+						Secret: &k8scorev1.SecretVolumeSource{
+							SecretName: dockerDaemonConfigSecret,
+							DefaultMode: clabernetesutil.ToPointer(
+								int32(clabernetesconstants.PermissionsEveryoneReadWriteOwnerExecute),
+							),
+						},
 					},
 				},
-			},
-		)
+			)
 
-		volumeMountsFromCommonSpec = append(
-			volumeMountsFromCommonSpec,
-			k8scorev1.VolumeMount{
-				Name:      "docker-daemon-config",
-				ReadOnly:  true,
-				MountPath: "/etc/docker",
-			},
-		)
+			volumeMountsFromCommonSpec = append(
+				volumeMountsFromCommonSpec,
+				k8scorev1.VolumeMount{
+					Name:      "docker-daemon-config",
+					ReadOnly:  true,
+					MountPath: "/etc/docker",
+				},
+			)
+		}
 	}
 
 	dockerConfigSecret := owningTopology.Spec.ImagePull.DockerConfig
@@ -612,18 +656,27 @@ func (r *DeploymentReconciler) renderDeploymentVolumes( //nolint:funlen
 
 func (r *DeploymentReconciler) renderDeploymentVolumesGetCRISockPath(
 	owningTopology *clabernetesapisv1alpha1.Topology,
-) (path, subPath string) {
-	if owningTopology.Spec.ImagePull.PullThroughOverride == clabernetesconstants.ImagePullThroughModeNever { //nolint:lll
-		// obviously the topology is set to *never*, so nothing to do...
-		return path, subPath
+	isContainerd bool,
+) (path, subPath string, readOnly bool) {
+	// in containerd mode, the CRI socket is always needed (containerlab uses it to create
+	// containers) -- so we skip the pull-through-mode checks and always mount the socket
+	if !isContainerd {
+		if owningTopology.Spec.ImagePull.PullThroughOverride == clabernetesconstants.ImagePullThroughModeNever { //nolint:lll
+			// obviously the topology is set to *never*, so nothing to do...
+			return path, subPath, true
+		}
+
+		if owningTopology.Spec.ImagePull.PullThroughOverride == "" && r.configManagerGetter().
+			GetImagePullThroughMode() == clabernetesconstants.ImagePullThroughModeNever {
+			// our specific topology is setting is unset, so we default to the global value, if
+			// that is never then we are obviously done here
+			return path, subPath, true
+		}
 	}
 
-	if owningTopology.Spec.ImagePull.PullThroughOverride == "" && r.configManagerGetter().
-		GetImagePullThroughMode() == clabernetesconstants.ImagePullThroughModeNever {
-		// our specific topology is setting is unset, so we default to the global value, if that
-		// is never then we are obviously done here
-		return path, subPath
-	}
+	// default to read-only for docker mode, read-write for containerd mode (containerlab needs
+	// to create containers on the socket)
+	readOnly = !isContainerd
 
 	criSockOverrideFullPath := r.configManagerGetter().GetImagePullCriSockOverride()
 	if criSockOverrideFullPath != "" {
@@ -635,7 +688,7 @@ func (r *DeploymentReconciler) renderDeploymentVolumesGetCRISockPath(
 					" will skip mounting cri sock",
 			)
 
-			return path, subPath
+			return path, subPath, readOnly
 		}
 	} else {
 		switch r.criKind {
@@ -644,15 +697,26 @@ func (r *DeploymentReconciler) renderDeploymentVolumesGetCRISockPath(
 
 			subPath = clabernetesconstants.KubernetesCRISockContainerd
 		default:
-			r.log.Warnf(
-				"image pull through mode is auto or always but cri kind is not containerd!"+
-					" got cri kind %q",
-				r.criKind,
-			)
+			if isContainerd {
+				// in containerd mode we must have a socket -- default to containerd
+				r.log.Warn(
+					"containerd runtime selected but cri kind is unknown, " +
+						"defaulting to containerd socket path",
+				)
+
+				path = clabernetesconstants.KubernetesCRISockContainerdPath
+				subPath = clabernetesconstants.KubernetesCRISockContainerd
+			} else {
+				r.log.Warnf(
+					"image pull through mode is auto or always but cri kind is not "+
+						"containerd or cri-o! got cri kind %q",
+					r.criKind,
+				)
+			}
 		}
 	}
 
-	return path, subPath
+	return path, subPath, readOnly
 }
 
 func (r *DeploymentReconciler) renderDeploymentContainer(
@@ -662,6 +726,9 @@ func (r *DeploymentReconciler) renderDeploymentContainer(
 	volumeMountsFromCommonSpec []k8scorev1.VolumeMount,
 	owningTopology *clabernetesapisv1alpha1.Topology,
 ) {
+	containerRuntime := r.resolveContainerRuntime(owningTopology)
+	isContainerd := containerRuntime == clabernetesconstants.LauncherContainerRuntimeContainerd
+
 	image := owningTopology.Spec.Deployment.LauncherImage
 	if image == "" {
 		image = r.configManagerGetter().GetLauncherImage()
@@ -670,6 +737,47 @@ func (r *DeploymentReconciler) renderDeploymentContainer(
 	imagePullPolicy := owningTopology.Spec.Deployment.LauncherImagePullPolicy
 	if imagePullPolicy == "" {
 		imagePullPolicy = r.configManagerGetter().GetLauncherImagePullPolicy()
+	}
+
+	volumeMounts := []k8scorev1.VolumeMount{
+		{
+			Name:      configVolumeName,
+			ReadOnly:  true,
+			MountPath: "/clabernetes/topo.clab.yaml",
+			SubPath:   nodeName,
+		},
+		{
+			Name:      configVolumeName,
+			ReadOnly:  true,
+			MountPath: "/clabernetes/files-from-url.yaml",
+			SubPath:   fmt.Sprintf("%s-files-from-url", nodeName),
+		},
+		{
+			Name:      configVolumeName,
+			ReadOnly:  true,
+			MountPath: "/clabernetes/configured-pull-secrets.yaml",
+			SubPath:   "configured-pull-secrets",
+		},
+	}
+
+	// /var/lib/docker mount is only needed in docker (DinD) mode
+	if !isContainerd {
+		volumeMounts = append(volumeMounts, k8scorev1.VolumeMount{
+			Name:      "docker",
+			ReadOnly:  false,
+			MountPath: "/var/lib/docker",
+		})
+	}
+
+	// /run/netns with Bidirectional mount propagation is needed in containerd mode so that
+	// named network namespaces created inside the pod are visible on the host node.
+	if isContainerd {
+		mountPropBidirectional := k8scorev1.MountPropagationBidirectional
+		volumeMounts = append(volumeMounts, k8scorev1.VolumeMount{
+			Name:             "netns",
+			MountPath:        "/run/netns",
+			MountPropagation: &mountPropBidirectional,
+		})
 	}
 
 	container := k8scorev1.Container{
@@ -689,31 +797,7 @@ func (r *DeploymentReconciler) renderDeploymentContainer(
 				Protocol:      clabernetesconstants.TCP,
 			},
 		},
-		VolumeMounts: []k8scorev1.VolumeMount{
-			{
-				Name:      configVolumeName,
-				ReadOnly:  true,
-				MountPath: "/clabernetes/topo.clab.yaml",
-				SubPath:   nodeName,
-			},
-			{
-				Name:      configVolumeName,
-				ReadOnly:  true,
-				MountPath: "/clabernetes/files-from-url.yaml",
-				SubPath:   fmt.Sprintf("%s-files-from-url", nodeName),
-			},
-			{
-				Name:      configVolumeName,
-				ReadOnly:  true,
-				MountPath: "/clabernetes/configured-pull-secrets.yaml",
-				SubPath:   "configured-pull-secrets",
-			},
-			{
-				Name:      "docker",
-				ReadOnly:  false,
-				MountPath: "/var/lib/docker",
-			},
-		},
+		VolumeMounts:             volumeMounts,
 		TerminationMessagePath:   "/dev/termination-log",
 		TerminationMessagePolicy: "File",
 		ImagePullPolicy:          k8scorev1.PullPolicy(imagePullPolicy),
@@ -770,6 +854,9 @@ func (r *DeploymentReconciler) renderDeploymentContainerEnv( //nolint: funlen
 	if containerlabTimeout == "" {
 		containerlabTimeout = r.configManagerGetter().GetContainerlabTimeout()
 	}
+
+	containerRuntime := r.resolveContainerRuntime(owningTopology)
+	isContainerd := containerRuntime == clabernetesconstants.LauncherContainerRuntimeContainerd
 
 	envs := []k8scorev1.EnvVar{
 		{
@@ -843,6 +930,10 @@ func (r *DeploymentReconciler) renderDeploymentContainerEnv( //nolint: funlen
 			Name:  clabernetesconstants.LauncherContainerlabTimeout,
 			Value: containerlabTimeout,
 		},
+		{
+			Name:  clabernetesconstants.LauncherContainerRuntimeEnv,
+			Value: containerRuntime,
+		},
 	}
 
 	if ResolveGlobalVsTopologyBool(
@@ -868,7 +959,8 @@ func (r *DeploymentReconciler) renderDeploymentContainerEnv( //nolint: funlen
 		)
 	}
 
-	if len(owningTopology.Spec.ImagePull.InsecureRegistries) > 0 {
+	// insecure registries are only relevant for docker mode (configures docker daemon)
+	if !isContainerd && len(owningTopology.Spec.ImagePull.InsecureRegistries) > 0 {
 		envs = append(
 			envs,
 			k8scorev1.EnvVar{
@@ -1242,7 +1334,7 @@ func (r *DeploymentReconciler) renderDeploymentPersistence(
 						owningTopologyName,
 						clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName),
 					),
-					ReadOnly:  false,
+					ReadOnly: false,
 				},
 			},
 		},

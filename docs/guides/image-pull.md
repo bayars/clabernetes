@@ -325,6 +325,22 @@ Check launcher logs:
 kubectl logs -l clabernetes/topologyNode=<node> -c clabernetes-launcher
 ```
 
+### Private Registry DNS Resolution Failures
+
+**Symptom:** The image pull pod reports `ErrImagePull` with a DNS resolution error (e.g.,
+`dial tcp: lookup registry.corp.internal: no such host`), even though the image already exists
+on the node or the node can reach the registry.
+
+**Cause:** Pull pods use Kubernetes cluster DNS (`ClusterFirst`) by default. Private or
+internal registry hostnames that are only resolvable via the node's network (e.g., entries in
+the node's `/etc/hosts`, a node-level DNS server, or a corporate VPN) are not visible to the
+pod's DNS resolver.
+
+**Fix (applied in the controller):** Pull pods are now created with `hostNetwork: true` and
+`DNSPolicy: ClusterFirstWithHostNet`. This places the pod in the host network namespace so it
+can resolve hostnames the same way the node does, while still retaining access to cluster DNS
+for in-cluster service discovery.
+
 ### Pull-Through Not Working
 
 1. Check ImageRequest is created and accepted

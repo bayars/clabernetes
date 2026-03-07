@@ -22,6 +22,204 @@ const (
 	overlayStorageDriver = "overlay2"
 )
 
+// dockerRuntime implements the containerRuntime interface using Docker-in-Docker (the legacy
+// default launcher runtime).
+type dockerRuntime struct{}
+
+func (d *dockerRuntime) Setup(ctx context.Context, logger io.Writer) error {
+	if daemonConfigExists() {
+		fmt.Fprintf(logger, "%q exists, skipping insecure registries\n", dockerDaemonConfig)
+	} else {
+		err := handleInsecureRegistries()
+		if err != nil {
+			return fmt.Errorf("failed configuring insecure docker registries: %w", err)
+		}
+	}
+
+	err := startDocker(ctx, logger)
+	if err != nil {
+		fmt.Fprintln(logger,
+			"failed ensuring docker is running, attempting to fallback to legacy ip tables",
+		)
+
+		// see https://github.com/srl-labs/clabernetes/issues/47
+		err = enableLegacyIPTables(ctx, logger)
+		if err != nil {
+			return fmt.Errorf("failed enabling legacy ip tables: %w", err)
+		}
+
+		err = startDocker(ctx, logger)
+		if err != nil {
+			return fmt.Errorf("failed ensuring docker is running: %w", err)
+		}
+
+		fmt.Fprintln(logger, "docker started, but using legacy ip tables")
+	}
+
+	return nil
+}
+
+func (d *dockerRuntime) GetContainerIDs(ctx context.Context, all bool) ([]string, error) {
+	args := []string{"ps"}
+
+	if all {
+		args = append(args, "-a")
+	}
+
+	args = append(args, "--quiet")
+
+	psCmd := exec.CommandContext(ctx, "docker", args...)
+
+	output, err := psCmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	containerIDLines := strings.Split(string(output), "\n")
+
+	var containerIDs []string
+
+	for _, line := range containerIDLines {
+		trimmedLine := strings.TrimSpace(line)
+
+		if trimmedLine != "" {
+			containerIDs = append(containerIDs, trimmedLine)
+		}
+	}
+
+	return containerIDs, nil
+}
+
+func (d *dockerRuntime) GetContainerIDForNodeName(
+	ctx context.Context,
+	nodeName string,
+) (string, error) {
+	psCmd := exec.CommandContext( //nolint:gosec
+		ctx,
+		"docker",
+		"ps",
+		"--quiet",
+		"--filter",
+		fmt.Sprintf("name=%s", nodeName),
+	)
+
+	output, err := psCmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(output)), nil
+}
+
+func (d *dockerRuntime) GetContainerAddr(
+	ctx context.Context,
+	containerID string,
+) (string, error) {
+	inspectCmd := exec.CommandContext(
+		ctx,
+		"docker",
+		"inspect",
+		"--format",
+		"{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+		containerID,
+	)
+
+	output, err := inspectCmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(output)), nil
+}
+
+func (d *dockerRuntime) PrintContainerLogs(
+	ctx context.Context,
+	logger claberneteslogging.Instance,
+	containerIDs []string,
+) {
+	for _, containerID := range containerIDs {
+		args := []string{
+			"logs",
+			containerID,
+		}
+
+		cmd := exec.CommandContext(ctx, "docker", args...) //nolint:gosec
+
+		cmd.Stdout = logger
+		cmd.Stderr = logger
+
+		err := cmd.Run()
+		if err != nil {
+			logger.Warnf(
+				"printing node logs for container id %q failed, err: %s", containerID, err,
+			)
+		}
+	}
+}
+
+func (d *dockerRuntime) TailContainerLogs(
+	ctx context.Context,
+	logger claberneteslogging.Instance,
+	nodeLogger io.Writer,
+	containerIDs []string,
+) error {
+	nodeLogFile, err := os.Create("node.log")
+	if err != nil {
+		return err
+	}
+
+	nodeOutWriter := io.MultiWriter(nodeLogger, nodeLogFile)
+
+	for _, containerID := range containerIDs {
+		go func(containerID string, nodeOutWriter io.Writer) {
+			args := []string{
+				"logs",
+				"-f",
+				containerID,
+			}
+
+			cmd := exec.CommandContext(ctx, "docker", args...) //nolint:gosec
+
+			cmd.Stdout = nodeOutWriter
+			cmd.Stderr = nodeOutWriter
+
+			err = cmd.Run()
+			if err != nil {
+				logger.Warnf(
+					"tailing node logs for container id %q failed, err: %s", containerID, err,
+				)
+			}
+		}(containerID, nodeOutWriter)
+	}
+
+	return nil
+}
+
+func (d *dockerRuntime) Cleanup(ctx context.Context, logger io.Writer) {
+	exportCmd := exec.CommandContext(
+		ctx,
+		"docker",
+		"system",
+		"prune",
+		"--force",
+	)
+
+	exportCmd.Stdout = logger
+	exportCmd.Stderr = logger
+
+	_ = exportCmd.Run()
+}
+
+func (d *dockerRuntime) ContainerlabArgs() []string {
+	return nil
+}
+
+func (d *dockerRuntime) NeedsImagePullThrough() bool {
+	return true
+}
+
+// helper functions used by dockerRuntime.Setup
+
 func daemonConfigExists() bool {
 	_, err := os.Stat(dockerDaemonConfig)
 
@@ -139,134 +337,4 @@ func startDocker(ctx context.Context, logger io.Writer) error {
 
 		attempts++
 	}
-}
-
-func getContainerIDs(ctx context.Context, all bool) ([]string, error) {
-	args := []string{"ps"}
-
-	if all {
-		args = append(args, "-a")
-	}
-
-	args = append(args, "--quiet")
-
-	psCmd := exec.CommandContext(ctx, "docker", args...)
-
-	output, err := psCmd.Output()
-	if err != nil {
-		return nil, err
-	}
-
-	containerIDLines := strings.Split(string(output), "\n")
-
-	var containerIDs []string
-
-	for _, line := range containerIDLines {
-		trimmedLine := strings.TrimSpace(line)
-
-		if trimmedLine != "" {
-			containerIDs = append(containerIDs, trimmedLine)
-		}
-	}
-
-	return containerIDs, nil
-}
-
-func printContainerLogs(
-	ctx context.Context,
-	logger claberneteslogging.Instance,
-	containerIDs []string,
-) {
-	for _, containerID := range containerIDs {
-		args := []string{
-			"logs",
-			containerID,
-		}
-
-		cmd := exec.CommandContext(ctx, "docker", args...) //nolint:gosec
-
-		cmd.Stdout = logger
-		cmd.Stderr = logger
-
-		err := cmd.Run()
-		if err != nil {
-			logger.Warnf(
-				"printing node logs for container id %q failed, err: %s", containerID, err,
-			)
-		}
-	}
-}
-
-func tailContainerLogs(
-	ctx context.Context,
-	logger claberneteslogging.Instance,
-	nodeLogger io.Writer,
-	containerIDs []string,
-) error {
-	nodeLogFile, err := os.Create("node.log")
-	if err != nil {
-		return err
-	}
-
-	nodeOutWriter := io.MultiWriter(nodeLogger, nodeLogFile)
-
-	for _, containerID := range containerIDs {
-		go func(containerID string, nodeOutWriter io.Writer) {
-			args := []string{
-				"logs",
-				"-f",
-				containerID,
-			}
-
-			cmd := exec.CommandContext(ctx, "docker", args...) //nolint:gosec
-
-			cmd.Stdout = nodeOutWriter
-			cmd.Stderr = nodeOutWriter
-
-			err = cmd.Run()
-			if err != nil {
-				logger.Warnf(
-					"tailing node logs for container id %q failed, err: %s", containerID, err,
-				)
-			}
-		}(containerID, nodeOutWriter)
-	}
-
-	return nil
-}
-
-func getContainerIDForNodeName(ctx context.Context, nodeName string) (string, error) {
-	psCmd := exec.CommandContext( //nolint:gosec
-		ctx,
-		"docker",
-		"ps",
-		"--quiet",
-		"--filter",
-		fmt.Sprintf("name=%s", nodeName),
-	)
-
-	output, err := psCmd.Output()
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(string(output)), nil
-}
-
-func getContainerAddr(ctx context.Context, containerID string) (string, error) {
-	inspectCmd := exec.CommandContext(
-		ctx,
-		"docker",
-		"inspect",
-		"--format",
-		"{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
-		containerID,
-	)
-
-	output, err := inspectCmd.Output()
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(string(output)), nil
 }

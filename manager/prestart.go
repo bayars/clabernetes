@@ -80,13 +80,17 @@ func cri(c clabernetesmanagertypes.Clabernetes) (string, error) {
 	nodeCRIs := clabernetesutil.NewStringSet()
 
 	for idx := range nodes.Items {
+		// skip control-plane nodes -- launcher pods never run there, so their CRI should not
+		// influence the detected CRI kind for launcher pod configuration
+		if _, isControlPlane := nodes.Items[idx].Labels["node-role.kubernetes.io/control-plane"]; isControlPlane {
+			continue
+		}
+
 		criVersion := nodes.Items[idx].Status.NodeInfo.ContainerRuntimeVersion
 
 		switch {
 		case strings.HasPrefix(criVersion, clabernetesconstants.KubernetesCRIContainerd):
 			nodeCRIs.Add(clabernetesconstants.KubernetesCRIContainerd)
-		case strings.HasPrefix(criVersion, clabernetesconstants.KubernetesCRICrio):
-			nodeCRIs.Add(clabernetesconstants.KubernetesCRICrio)
 		default:
 			nodeCRIs.Add(clabernetesconstants.KubernetesCRIUnknown)
 		}

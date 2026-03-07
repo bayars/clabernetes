@@ -131,6 +131,8 @@ func (c *clabernetes) runContainerlab() error {
 		args = append(args, []string{"--timeout", containerlabTimeout}...)
 	}
 
+	args = append(args, c.runtime.ContainerlabArgs()...)
+
 	cmd := exec.CommandContext(c.ctx, "containerlab", args...)
 
 	cmd.Stdout = containerlabOutWriter
