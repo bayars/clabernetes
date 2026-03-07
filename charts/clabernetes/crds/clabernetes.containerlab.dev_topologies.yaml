@@ -84,6 +84,17 @@ spec:
                   Deployment holds configurations relevant to how clabernetes configures deployments that make
                   up a given topology.
                 properties:
+                  containerRuntime:
+                    description: |-
+                      ContainerRuntime sets the container runtime for launcher pods in this topology. Valid values
+                      are "docker" (default, runs Docker-in-Docker) and "containerd" (talks directly to the host
+                      containerd socket, no DinD overhead). When set to "containerd", the launcher Dockerfile
+                      must be built with containerd support and the containerlab fork with containerd runtime
+                      must be used.
+                    enum:
+                    - docker
+                    - containerd
+                    type: string
                   containerlabDebug:
                     description: |-
                       ContainerlabDebug sets the `--debug` flag when invoking containerlab in the launcher pods.

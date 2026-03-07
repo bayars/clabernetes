@@ -92,6 +92,12 @@ type ConfigDeployment struct {
 	// +kubebuilder:validation:Enum=disabled;critical;warn;info;debug
 	// +optional
 	LauncherLogLevel string `json:"launcherLogLevel,omitempty"`
+	// ContainerRuntime sets the default container runtime for launcher pods. Valid values are
+	// "docker" (default) and "containerd". See Topology.Spec.Deployment.ContainerRuntime for
+	// details.
+	// +kubebuilder:validation:Enum=docker;containerd
+	// +optional
+	ContainerRuntime string `json:"containerRuntime,omitempty"`
 	// ExtraEnv is a list of additional environment variables to set on the launcher container. The
 	// values here are applied to *all* launchers since this is the global config after all!
 	// +optional

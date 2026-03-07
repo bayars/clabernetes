@@ -47,6 +47,15 @@ spec:
                 description: Deployment holds clabernetes deployment related configuration
                   settings.
                 properties:
+                  containerRuntime:
+                    description: |-
+                      ContainerRuntime sets the default container runtime for launcher pods. Valid values are
+                      "docker" (default) and "containerd". See Topology.Spec.Deployment.ContainerRuntime for
+                      details.
+                    enum:
+                    - docker
+                    - containerd
+                    type: string
                   containerlabDebug:
                     description: |-
                       ContainerlabDebug sets the `--debug` flag when invoking containerlab in the launcher pods.

@@ -2,7 +2,6 @@
     "metadata": {
         "name": "render-deployment-test-node-selectors-srl1",
         "namespace": "clabernetes",
-        "creationTimestamp": null,
         "labels": {
             "app.kubernetes.io/name": "render-deployment-test-node-selectors-srl1",
             "clabernetes/app": "clabernetes",
@@ -24,7 +23,6 @@
         },
         "template": {
             "metadata": {
-                "creationTimestamp": null,
                 "labels": {
                     "app.kubernetes.io/name": "render-deployment-test-node-selectors-srl1",
                     "clabernetes/app": "clabernetes",
@@ -138,6 +136,10 @@
                                 "name": "LAUNCHER_CONTAINERLAB_TIMEOUT"
                             },
                             {
+                                "name": "LAUNCHER_CONTAINER_RUNTIME",
+                                "value": "docker"
+                            },
+                            {
                                 "name": "LAUNCHER_PRIVILEGED",
                                 "value": "true"
                             }
@@ -163,9 +165,9 @@
                                 "subPath": "configured-pull-secrets"
                             },
                             {
-                                 "name": "docker",
-                                 "mountPath": "/var/lib/docker"
-                            }                            
+                                "name": "docker",
+                                "mountPath": "/var/lib/docker"
+                            }
                         ],
                         "terminationMessagePath": "/dev/termination-log",
                         "terminationMessagePolicy": "File",

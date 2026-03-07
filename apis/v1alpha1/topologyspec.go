@@ -211,6 +211,14 @@ type Deployment struct {
 	// +kubebuilder:validation:Enum=disabled;critical;warn;info;debug
 	// +optional
 	LauncherLogLevel string `json:"launcherLogLevel,omitempty"`
+	// ContainerRuntime sets the container runtime for launcher pods in this topology. Valid values
+	// are "docker" (default, runs Docker-in-Docker) and "containerd" (talks directly to the host
+	// containerd socket, no DinD overhead). When set to "containerd", the launcher Dockerfile
+	// must be built with containerd support and the containerlab fork with containerd runtime
+	// must be used.
+	// +kubebuilder:validation:Enum=docker;containerd
+	// +optional
+	ContainerRuntime string `json:"containerRuntime,omitempty"`
 	// ExtraEnv is a list of additional environment variables to set on the launcher container. The
 	// values here override any configured global config extra envs!
 	// +optional
