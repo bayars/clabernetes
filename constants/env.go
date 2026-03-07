@@ -93,6 +93,11 @@ const (
 	// should run (vxlan/slurpeeth).
 	LauncherConnectivityKind = "LAUNCHER_CONNECTIVITY_KIND"
 
+	// LauncherContainerRuntimeEnv is the env var that holds the container runtime to use in the
+	// launcher pod -- either "docker" (default, runs DinD) or "containerd" (talks directly to
+	// the host containerd socket).
+	LauncherContainerRuntimeEnv = "LAUNCHER_CONTAINER_RUNTIME"
+
 	// LauncherContainerlabVersion is the env var that holds the possibly user specified version of
 	// containerlab to download and use in the launcher.
 	LauncherContainerlabVersion = "LAUNCHER_CONTAINERLAB_VERSION"

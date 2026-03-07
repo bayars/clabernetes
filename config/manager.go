@@ -157,6 +157,8 @@ type Manager interface { //nolint: interfacebloat
 	GetRemoveTopologyPrefix() bool
 	// GetContainerlabVersion returns the global config containerlab version.
 	GetContainerlabVersion() string
+	// GetContainerRuntime returns the global config container runtime for launcher pods.
+	GetContainerRuntime() string
 }
 
 type manager struct {

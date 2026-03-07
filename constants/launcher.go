@@ -25,6 +25,14 @@ const (
 	// naming field of a Topology.
 	NamingModeGlobal = "global"
 
+	// LauncherContainerRuntimeDocker is the "docker" container runtime mode for the launcher --
+	// this is the default/legacy mode that runs Docker-in-Docker.
+	LauncherContainerRuntimeDocker = "docker"
+
+	// LauncherContainerRuntimeContainerd is the "containerd" container runtime mode for the
+	// launcher -- this mode talks directly to the host containerd socket, no DinD needed.
+	LauncherContainerRuntimeContainerd = "containerd"
+
 	// ConnectivityVXLAN is a constant for the vxlan connectivity flavor.
 	ConnectivityVXLAN = "vxlan"
 

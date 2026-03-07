@@ -153,6 +153,8 @@ func (c *Controller) spawnImagePullerPod(
 			Labels:      labels,
 		},
 		Spec: k8scorev1.PodSpec{
+			HostNetwork: true,
+			DNSPolicy:   k8scorev1.DNSClusterFirstWithHostNet,
 			Containers: []k8scorev1.Container{
 				{
 					Name:  "puller",
