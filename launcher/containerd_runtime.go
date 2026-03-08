@@ -29,7 +29,7 @@ func newContainerdRuntime() *containerdRuntime {
 	return &containerdRuntime{
 		socketPath: fmt.Sprintf(
 			"%s/%s",
-			clabernetesconstants.LauncherCRISockPath,
+			clabernetesconstants.KubernetesCRISockContainerdPath,
 			clabernetesconstants.KubernetesCRISockContainerd,
 		),
 		namespace: containerdDefaultNamespace,
@@ -222,7 +222,6 @@ func (c *containerdRuntime) Cleanup(_ context.Context, _ io.Writer) {
 func (c *containerdRuntime) ContainerlabArgs() []string {
 	return []string{
 		"--runtime", "containerd",
-		"--containerd-socket", c.socketPath,
 	}
 }
 

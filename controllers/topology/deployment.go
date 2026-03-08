@@ -502,17 +502,27 @@ func (r *DeploymentReconciler) renderDeploymentVolumes( //nolint:funlen
 			},
 		)
 
+		criMountPath := fmt.Sprintf(
+			"%s/%s",
+			clabernetesconstants.LauncherCRISockPath,
+			criSubPath,
+		)
+		if isContainerd {
+			// mount at the path the containerlab fork hardcodes for the containerd socket
+			criMountPath = fmt.Sprintf(
+				"%s/%s",
+				clabernetesconstants.KubernetesCRISockContainerdPath,
+				criSubPath,
+			)
+		}
+
 		volumeMountsFromCommonSpec = append(
 			volumeMountsFromCommonSpec,
 			k8scorev1.VolumeMount{
-				Name:     "cri-sock",
-				ReadOnly: criReadOnly,
-				MountPath: fmt.Sprintf(
-					"%s/%s",
-					clabernetesconstants.LauncherCRISockPath,
-					criSubPath,
-				),
-				SubPath: criSubPath,
+				Name:      "cri-sock",
+				ReadOnly:  criReadOnly,
+				MountPath: criMountPath,
+				SubPath:   criSubPath,
 			},
 		)
 
