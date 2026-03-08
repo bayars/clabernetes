@@ -488,7 +488,31 @@ func (r *DeploymentReconciler) renderDeploymentVolumes( //nolint:funlen
 		owningTopology, isContainerd,
 	)
 
-	if criPath != "" && criSubPath != "" {
+	if isContainerd && criPath != "" {
+		// In containerd mode mount the entire containerd directory (not just the socket file via
+		// SubPath) -- Unix socket files cannot be bind-mounted via Kubernetes SubPath.
+		volumes = append(
+			volumes,
+			k8scorev1.Volume{
+				Name: "cri-sock",
+				VolumeSource: k8scorev1.VolumeSource{
+					HostPath: &k8scorev1.HostPathVolumeSource{
+						Path: criPath,
+						Type: clabernetesutil.ToPointer(k8scorev1.HostPathDirectory),
+					},
+				},
+			},
+		)
+
+		volumeMountsFromCommonSpec = append(
+			volumeMountsFromCommonSpec,
+			k8scorev1.VolumeMount{
+				Name:      "cri-sock",
+				ReadOnly:  criReadOnly,
+				MountPath: criPath,
+			},
+		)
+	} else if !isContainerd && criPath != "" && criSubPath != "" {
 		volumes = append(
 			volumes,
 			k8scorev1.Volume{
@@ -502,30 +526,19 @@ func (r *DeploymentReconciler) renderDeploymentVolumes( //nolint:funlen
 			},
 		)
 
-		criMountPath := fmt.Sprintf(
-			"%s/%s",
-			clabernetesconstants.LauncherCRISockPath,
-			criSubPath,
-		)
-		if isContainerd {
-			// mount at the path the containerlab fork hardcodes for the containerd socket
-			criMountPath = fmt.Sprintf(
-				"%s/%s",
-				clabernetesconstants.KubernetesCRISockContainerdPath,
-				criSubPath,
-			)
-		}
-
 		volumeMountsFromCommonSpec = append(
 			volumeMountsFromCommonSpec,
 			k8scorev1.VolumeMount{
-				Name:      "cri-sock",
-				ReadOnly:  criReadOnly,
-				MountPath: criMountPath,
-				SubPath:   criSubPath,
+				Name:    "cri-sock",
+				ReadOnly: criReadOnly,
+				MountPath: fmt.Sprintf(
+					"%s/%s",
+					clabernetesconstants.LauncherCRISockPath,
+					criSubPath,
+				),
+				SubPath: criSubPath,
 			},
 		)
-
 	}
 
 	// docker daemon config secret is only relevant for docker mode
