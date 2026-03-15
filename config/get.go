@@ -182,3 +182,10 @@ func (m *manager) GetContainerlabVersion() string {
 
 	return m.config.Deployment.ContainerlabVersion
 }
+
+func (m *manager) GetContainerlabExtraArgs() []string {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	return m.config.Deployment.ContainerlabExtraArgs
+}

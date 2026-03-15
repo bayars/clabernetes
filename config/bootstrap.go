@@ -32,6 +32,7 @@ type bootstrapConfig struct {
 	criKindOverride             string
 	naming                      string
 	containerlabVersion         string
+	containerlabExtraArgs       []string
 	extraEnv                    []k8scorev1.EnvVar
 }
 
@@ -164,6 +165,14 @@ func bootstrapFromConfigMap( //nolint:gocyclo,funlen,gocognit
 	containerlabVersion, containerlabVersionOk := inMap["containerlabVersion"]
 	if containerlabVersionOk {
 		bc.containerlabVersion = containerlabVersion
+	}
+
+	containerlabExtraArgsData, containerlabExtraArgsOk := inMap["containerlabExtraArgs"]
+	if containerlabExtraArgsOk {
+		err := yaml.Unmarshal([]byte(containerlabExtraArgsData), &bc.containerlabExtraArgs)
+		if err != nil {
+			outErrors = append(outErrors, err.Error())
+		}
 	}
 
 	extraEnvData, extraEnvOk := inMap["extraEnv"]
@@ -310,6 +319,10 @@ func mergeFromBootstrapConfigMerge( //nolint:gocyclo
 		config.Spec.Deployment.ContainerlabVersion = bootstrap.containerlabVersion
 	}
 
+	if len(config.Spec.Deployment.ContainerlabExtraArgs) == 0 {
+		config.Spec.Deployment.ContainerlabExtraArgs = bootstrap.containerlabExtraArgs
+	}
+
 	if len(config.Spec.Deployment.ExtraEnv) == 0 {
 		config.Spec.Deployment.ExtraEnv = bootstrap.extraEnv
 	}
@@ -340,6 +353,7 @@ func mergeFromBootstrapConfigReplace(
 			LauncherImagePullPolicy:     bootstrap.launcherImagePullPolicy,
 			LauncherLogLevel:            bootstrap.launcherLogLevel,
 			ContainerlabVersion:         bootstrap.containerlabVersion,
+			ContainerlabExtraArgs:       bootstrap.containerlabExtraArgs,
 			ExtraEnv:                    bootstrap.extraEnv,
 		},
 		Naming: bootstrap.naming,

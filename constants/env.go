@@ -97,6 +97,10 @@ const (
 	// containerlab to download and use in the launcher.
 	LauncherContainerlabVersion = "LAUNCHER_CONTAINERLAB_VERSION"
 
+	// LauncherContainerlabExtraArgs is the environment variable name that holds a comma-separated
+	// list of additional arguments to pass to containerlab when invoked on the launcher pod.
+	LauncherContainerlabExtraArgs = "LAUNCHER_CONTAINERLAB_EXTRA_ARGS"
+
 	// LauncherTCPProbePort is the env var that holds the port to use in the tcp probe (if
 	// configured).
 	LauncherTCPProbePort = "LAUNCHER_TCP_PROBE_PORT"
