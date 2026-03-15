@@ -124,6 +124,8 @@ spec:
     containerlabDebug: true        # Enable debug logging
     containerlabTimeout: "30m"     # Deploy timeout
     containerlabVersion: "0.72.0"  # Pin specific version
+    containerlabExtraArgs:         # Extra args for 'clab deploy'
+      - "--skip-post-deploy"
 ```
 
 ### Launcher Configuration

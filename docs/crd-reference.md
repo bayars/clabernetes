@@ -111,6 +111,7 @@ Configures deployment-related settings for launcher pods.
 | `containerlabDebug` | *bool | - | Enable containerlab debug logging |
 | `containerlabTimeout` | string | - | Containerlab deploy timeout |
 | `containerlabVersion` | string | - | Override containerlab version |
+| `containerlabExtraArgs` | []string | - | Additional arguments for `containerlab deploy` (e.g., `--skip-post-deploy`) |
 | `launcherImage` | string | - | Override default launcher image |
 | `launcherImagePullPolicy` | enum | - | `IfNotPresent`, `Always`, or `Never` |
 | `launcherLogLevel` | enum | - | `disabled`, `critical`, `warn`, `info`, or `debug` |
@@ -445,6 +446,7 @@ Global deployment configuration.
 | `containerlabDebug` | bool | `false` | Default debug logging |
 | `containerlabTimeout` | string | - | Default deploy timeout |
 | `containerlabVersion` | string | - | Override containerlab version |
+| `containerlabExtraArgs` | []string | - | Default additional arguments for `containerlab deploy` |
 | `launcherImage` | string | `ghcr.io/srl-labs/clabernetes/clabernetes-launcher:latest` | Default launcher image |
 | `launcherImagePullPolicy` | enum | `IfNotPresent` | Default pull policy |
 | `launcherLogLevel` | enum | - | Default log level |
