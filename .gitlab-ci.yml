@@ -1,0 +1,204 @@
+---
+# GitLab CI/CD pipeline for clabernetes
+#
+# Mirrors the GitHub Actions workflows while keeping both CI systems working.
+# GitHub Actions files remain untouched under .github/workflows/.
+#
+# All jobs use a pre-built base image (.gitlab/ci.Dockerfile) that contains
+# Go, lint tools, helm, devspace, goreleaser, kind, kubectl, yq, and docker CLI.
+# Build and push it to your registry, then set CI_BASE_IMAGE accordingly.
+
+stages:
+  - lint
+  - test
+  - build
+  - release
+
+variables:
+  # Override this to point at wherever you pushed .gitlab/ci.Dockerfile
+  CI_BASE_IMAGE: "${CI_REGISTRY}/${CI_PROJECT_PATH}/ci:latest"
+
+# ---------------------------------------------------------------------------
+# Templates
+# ---------------------------------------------------------------------------
+
+.base:
+  image: ${CI_BASE_IMAGE}
+
+.dind:
+  extends: .base
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: tcp://docker:2375
+
+# ---------------------------------------------------------------------------
+# Lint
+# ---------------------------------------------------------------------------
+
+lint:
+  extends: .base
+  stage: lint
+  script:
+    - git diff --exit-code --name-only go.mod go.sum 2>&1
+    - make lint
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# ---------------------------------------------------------------------------
+# Test
+# ---------------------------------------------------------------------------
+
+unit-test:
+  extends: .base
+  stage: test
+  script:
+    - make test-race
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: cover.out
+    when: always
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+e2e-test:
+  extends: .dind
+  stage: test
+  needs:
+    - unit-test
+  before_script:
+    - kind create cluster --wait 60s
+    - kubectl cluster-info
+    - kubectl get pods -A
+    - devspace run deploy --profile debug
+    - docker system prune -a -f
+    - kubectl rollout status deployment clabernetes-manager -n clabernetes
+  script:
+    - make test-e2e
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ]; then
+        kubectl get pods -n clabernetes -o yaml || true
+        echo "********************************"
+        echo "****         events         ****"
+        echo "********************************"
+        kubectl get events -n clabernetes --sort-by='.lastTimestamp' || true
+        echo "********************************"
+        echo "****          logs          ****"
+        echo "********************************"
+        kubectl logs -l clabernetes/name=clabernetes-manager -n clabernetes --tail=-1 || true
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
+
+build:
+  extends: .dind
+  stage: build
+  needs:
+    - lint
+    - unit-test
+  script:
+    - export COMMIT_HASH=$(git describe --always --abbrev=8)
+    - devspace run build --skip-push
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        echo "${CI_REGISTRY_PASSWORD}" | docker login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+        devspace run build
+
+        echo "${CI_REGISTRY_PASSWORD}" | helm registry login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+
+        helm package charts/clicker --version 0.0.0
+        helm push clicker-0.0.0.tgz oci://${CI_REGISTRY}/${CI_PROJECT_PATH}
+
+        sed -i \
+          's|    version: (.*)|    version: 0.0.0|g' \
+          charts/clabernetes/Chart.yaml
+        helm package charts/clabernetes --version 0.0.0
+        helm push clabernetes-0.0.0.tgz oci://${CI_REGISTRY}/${CI_PROJECT_PATH}
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# ---------------------------------------------------------------------------
+# Release  (triggered by tag push, e.g. v0.1.0)
+# ---------------------------------------------------------------------------
+
+release:
+  extends: .dind
+  stage: release
+  before_script:
+    - export RELEASE_VERSION=${CI_COMMIT_TAG#v}
+    - echo "${CI_REGISTRY_PASSWORD}" | docker login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+    - echo "${CI_REGISTRY_PASSWORD}" | helm registry login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+  script:
+    - export RELEASE_VERSION=${CI_COMMIT_TAG#v}
+    - goreleaser release --clean
+    - devspace run build --profile release --var RELEASE_VERSION=${RELEASE_VERSION}
+    - make set-chart-versions ${RELEASE_VERSION}
+    - helm package charts/clicker --version ${RELEASE_VERSION}
+    - helm push clicker-${RELEASE_VERSION}.tgz oci://${CI_REGISTRY}/${CI_PROJECT_PATH}
+    - helm package charts/clabernetes --version ${RELEASE_VERSION}
+    - helm push clabernetes-${RELEASE_VERSION}.tgz oci://${CI_REGISTRY}/${CI_PROJECT_PATH}
+  artifacts:
+    paths:
+      - .dist/
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: "Release ${CI_COMMIT_TAG}"
+    assets:
+      links:
+        - name: "Release artifacts"
+          url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/download"
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# ---------------------------------------------------------------------------
+# Custom Release  (manual trigger via web UI)
+# ---------------------------------------------------------------------------
+
+custom-release:
+  extends: .dind
+  stage: release
+  variables:
+    CUSTOM_VERSION:
+      description: "Version tag to use for custom release"
+      value: ""
+  before_script:
+    - echo "${CI_REGISTRY_PASSWORD}" | docker login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+  script:
+    - devspace run build --profile custom-release --var RELEASE_VERSION=${CUSTOM_VERSION}
+    - export RELEASE_VERSION=0.0.0
+    - make set-chart-versions ${RELEASE_VERSION}
+    - |
+      export CLICKER_IMAGE="${CI_REGISTRY}/${CI_PROJECT_PATH}/clabernetes-clicker:${CUSTOM_VERSION}"
+      yq -i eval '.image = strenv(CLICKER_IMAGE)' charts/clicker/values.yaml
+    - |
+      export MANAGER_IMAGE="${CI_REGISTRY}/${CI_PROJECT_PATH}/clabernetes-manager:${CUSTOM_VERSION}"
+      export LAUNCHER_IMAGE="${CI_REGISTRY}/${CI_PROJECT_PATH}/clabernetes-launcher:${CUSTOM_VERSION}"
+      yq -i eval '.manager.image = strenv(MANAGER_IMAGE)' charts/clabernetes/values.yaml
+      yq -i eval '.launcher.image = strenv(LAUNCHER_IMAGE)' charts/clabernetes/values.yaml
+    - helm package charts/clicker --version ${RELEASE_VERSION}
+    - helm package charts/clabernetes --version ${RELEASE_VERSION}
+  artifacts:
+    paths:
+      - clicker-0.0.0.tgz
+      - clabernetes-0.0.0.tgz
+    expire_in: 30 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
