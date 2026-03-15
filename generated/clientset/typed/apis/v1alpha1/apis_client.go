@@ -31,6 +31,7 @@ type ClabernetesV1alpha1Interface interface {
 	ConfigsGetter
 	ConnectivitiesGetter
 	ImageRequestsGetter
+	SnapshotsGetter
 	TopologiesGetter
 }
 
@@ -49,6 +50,10 @@ func (c *ClabernetesV1alpha1Client) Connectivities(namespace string) Connectivit
 
 func (c *ClabernetesV1alpha1Client) ImageRequests(namespace string) ImageRequestInterface {
 	return newImageRequests(c, namespace)
+}
+
+func (c *ClabernetesV1alpha1Client) Snapshots(namespace string) SnapshotInterface {
+	return newSnapshots(c, namespace)
 }
 
 func (c *ClabernetesV1alpha1Client) Topologies(namespace string) TopologyInterface {
@@ -99,8 +104,7 @@ func setConfigDefaults(config *rest.Config) {
 	gv := apisv1alpha1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).
-		WithoutConversion()
+	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

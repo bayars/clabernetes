@@ -40,6 +40,10 @@ func (c *FakeClabernetesV1alpha1) ImageRequests(namespace string) v1alpha1.Image
 	return newFakeImageRequests(c, namespace)
 }
 
+func (c *FakeClabernetesV1alpha1) Snapshots(namespace string) v1alpha1.SnapshotInterface {
+	return newFakeSnapshots(c, namespace)
+}
+
 func (c *FakeClabernetesV1alpha1) Topologies(namespace string) v1alpha1.TopologyInterface {
 	return newFakeTopologies(c, namespace)
 }
