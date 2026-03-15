@@ -44,6 +44,7 @@ spec:
           - endpoints: ["srl1:e1-1", "srl2:e1-1"]
   deployment:
     containerlabDebug: null
+    containerlabExtraArgs: null
     containerlabTimeout: ""
     extraEnv: null
     filesFromConfigMap:
