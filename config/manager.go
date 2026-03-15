@@ -157,6 +157,8 @@ type Manager interface { //nolint: interfacebloat
 	GetRemoveTopologyPrefix() bool
 	// GetContainerlabVersion returns the global config containerlab version.
 	GetContainerlabVersion() string
+	// GetContainerlabExtraArgs returns the global config containerlab extra args.
+	GetContainerlabExtraArgs() []string
 }
 
 type manager struct {

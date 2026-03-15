@@ -163,6 +163,9 @@
                             },
                             {
                                 "name": "LAUNCHER_CONTAINERLAB_TIMEOUT"
+                            },
+                            {
+                                "name": "LAUNCHER_CONTAINERLAB_EXTRA_ARGS"
                             }
                         ],
                         "resources": {},

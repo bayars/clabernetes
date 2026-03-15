@@ -158,6 +158,12 @@ globalConfig:
     # version of containerlab. generally don't set this unless you need to.
     containerlabVersion: ""
 
+    # containerlabExtraArgs is a list of additional arguments to pass to the containerlab deploy
+    # command when invoked in the launcher pods. For example, you can pass "--skip-post-deploy"
+    # to skip post-deploy actions. Note that any configured global config extra args will be
+    # ignored if a Topology has containerlabExtraArgs configured.
+    containerlabExtraArgs: []
+
     # extraEnv is a list of k8scorev1.EnvVar that will be set on any launcher pods. Note that any
     # configured global config env vars will be ignored if a Topology has an extraEnv config.
     extraEnv: []

@@ -8,8 +8,8 @@ import (
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
 	clabernetescontrollerstopology "github.com/srl-labs/clabernetes/controllers/topology"
 	k8scorev1 "k8s.io/api/core/v1"
-	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlruntimefake "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -221,104 +221,132 @@ topology:
 					WithObjects(testCase.topology).
 					Build()
 
-				c := clabernetescontrollerstopology.NewTestController(fakeClient, scheme)
+				c := clabernetescontrollerstopology.NewTestController(fakeClient)
 
 				err := c.ReconcileSnapshotAnnotation(context.Background(), testCase.topology)
 				if err != nil {
 					t.Fatalf("unexpected error: %s", err)
 				}
 
-				// Check if a Snapshot was created
-				snapshotList := &clabernetesapisv1alpha1.SnapshotList{}
+				snapshotList := listSnapshots(t, fakeClient, testCase.topology)
 
-				listErr := fakeClient.List(
-					context.Background(),
-					snapshotList,
-					ctrlruntimeclient.InNamespace(testCase.topology.Namespace),
-					ctrlruntimeclient.MatchingLabels{
-						clabernetesconstants.LabelTopologyOwner: testCase.topology.Name,
-					},
-				)
-				if listErr != nil {
-					t.Fatalf("failed listing snapshots: %s", listErr)
-				}
-
-				if testCase.expectSnapshotCreated && len(snapshotList.Items) != 1 {
-					t.Fatalf(
-						"expected 1 snapshot to be created, got %d",
-						len(snapshotList.Items),
-					)
-				}
-
-				if !testCase.expectSnapshotCreated && len(snapshotList.Items) != 0 {
-					t.Fatalf(
-						"expected no snapshot to be created, got %d",
-						len(snapshotList.Items),
-					)
-				}
+				assertSnapshotCount(t, snapshotList, testCase.expectSnapshotCreated)
 
 				if testCase.expectSnapshotCreated {
-					snap := snapshotList.Items[0]
-
-					if snap.Spec.TopologyRef != testCase.topology.Name {
-						t.Errorf(
-							"snapshot TopologyRef = %q, want %q",
-							snap.Spec.TopologyRef,
-							testCase.topology.Name,
-						)
-					}
-
-					if snap.Spec.TopologyNamespace != testCase.topology.Namespace {
-						t.Errorf(
-							"snapshot TopologyNamespace = %q, want %q",
-							snap.Spec.TopologyNamespace,
-							testCase.topology.Namespace,
-						)
-					}
-
-					// Snapshot name must start with the topology name and have a timestamp suffix
-					expectedPrefix := testCase.topology.Name + "-"
-					if len(snap.Name) <= len(expectedPrefix) {
-						t.Errorf(
-							"snapshot name %q too short, expected prefix %q",
-							snap.Name,
-							expectedPrefix,
-						)
-					}
-
-					// Snapshot should carry topologyOwner label
-					if snap.Labels[clabernetesconstants.LabelTopologyOwner] != testCase.topology.Name {
-						t.Errorf(
-							"snapshot missing topologyOwner label, got %q",
-							snap.Labels[clabernetesconstants.LabelTopologyOwner],
-						)
-					}
+					assertSnapshotFields(t, &snapshotList.Items[0], testCase.topology)
 				}
 
-				// Fetch the topology again and check that the annotation was removed
-				updatedTopology := &clabernetesapisv1alpha1.Topology{}
-
-				getErr := fakeClient.Get(
-					context.Background(),
-					apimachinerytypes.NamespacedName{
-						Namespace: testCase.topology.Namespace,
-						Name:      testCase.topology.Name,
-					},
-					updatedTopology,
+				assertAnnotationRemoved(
+					t, fakeClient, testCase.topology, testCase.expectAnnotationRemoved,
 				)
-				if getErr != nil {
-					t.Fatalf("failed getting updated topology: %s", getErr)
-				}
-
-				if testCase.expectAnnotationRemoved {
-					if val, ok := updatedTopology.Annotations[clabernetesconstants.AnnotationSnapshotRequested]; ok {
-						t.Errorf(
-							"expected snapshotRequested annotation to be removed, but still present with value %q",
-							val,
-						)
-					}
-				}
 			},
+		)
+	}
+}
+
+func listSnapshots(
+	t *testing.T,
+	fakeClient ctrlruntimeclient.WithWatch,
+	topology *clabernetesapisv1alpha1.Topology,
+) *clabernetesapisv1alpha1.SnapshotList {
+	t.Helper()
+
+	snapshotList := &clabernetesapisv1alpha1.SnapshotList{}
+
+	listErr := fakeClient.List(
+		context.Background(),
+		snapshotList,
+		ctrlruntimeclient.InNamespace(topology.Namespace),
+		ctrlruntimeclient.MatchingLabels{
+			clabernetesconstants.LabelTopologyOwner: topology.Name,
+		},
+	)
+	if listErr != nil {
+		t.Fatalf("failed listing snapshots: %s", listErr)
+	}
+
+	return snapshotList
+}
+
+func assertSnapshotCount(
+	t *testing.T,
+	snapshotList *clabernetesapisv1alpha1.SnapshotList,
+	expectCreated bool,
+) {
+	t.Helper()
+
+	if expectCreated && len(snapshotList.Items) != 1 {
+		t.Fatalf("expected 1 snapshot to be created, got %d", len(snapshotList.Items))
+	}
+
+	if !expectCreated && len(snapshotList.Items) != 0 {
+		t.Fatalf("expected no snapshot to be created, got %d", len(snapshotList.Items))
+	}
+}
+
+func assertSnapshotFields(
+	t *testing.T,
+	snap *clabernetesapisv1alpha1.Snapshot,
+	topology *clabernetesapisv1alpha1.Topology,
+) {
+	t.Helper()
+
+	if snap.Spec.TopologyRef != topology.Name {
+		t.Errorf("snapshot TopologyRef = %q, want %q", snap.Spec.TopologyRef, topology.Name)
+	}
+
+	if snap.Spec.TopologyNamespace != topology.Namespace {
+		t.Errorf(
+			"snapshot TopologyNamespace = %q, want %q",
+			snap.Spec.TopologyNamespace,
+			topology.Namespace,
+		)
+	}
+
+	expectedPrefix := topology.Name + "-"
+	if len(snap.Name) <= len(expectedPrefix) {
+		t.Errorf("snapshot name %q too short, expected prefix %q", snap.Name, expectedPrefix)
+	}
+
+	if snap.Labels[clabernetesconstants.LabelTopologyOwner] != topology.Name {
+		t.Errorf(
+			"snapshot missing topologyOwner label, got %q",
+			snap.Labels[clabernetesconstants.LabelTopologyOwner],
+		)
+	}
+}
+
+func assertAnnotationRemoved(
+	t *testing.T,
+	fakeClient ctrlruntimeclient.WithWatch,
+	topology *clabernetesapisv1alpha1.Topology,
+	expectRemoved bool,
+) {
+	t.Helper()
+
+	updatedTopology := &clabernetesapisv1alpha1.Topology{}
+
+	getErr := fakeClient.Get(
+		context.Background(),
+		apimachinerytypes.NamespacedName{
+			Namespace: topology.Namespace,
+			Name:      topology.Name,
+		},
+		updatedTopology,
+	)
+	if getErr != nil {
+		t.Fatalf("failed getting updated topology: %s", getErr)
+	}
+
+	if !expectRemoved {
+		return
+	}
+
+	val, ok := updatedTopology.Annotations[clabernetesconstants.AnnotationSnapshotRequested]
+	if ok {
+		t.Errorf(
+			"expected snapshotRequested annotation to be removed, but still present with value %q",
+			val,
 		)
 	}
 }
@@ -342,7 +370,7 @@ func TestSnapshotCRSpec(t *testing.T) {
 		WithObjects(topology).
 		Build()
 
-	c := clabernetescontrollerstopology.NewTestController(fakeClient, scheme)
+	c := clabernetescontrollerstopology.NewTestController(fakeClient)
 
 	err := c.ReconcileSnapshotAnnotation(context.Background(), topology)
 	if err != nil {
@@ -351,7 +379,8 @@ func TestSnapshotCRSpec(t *testing.T) {
 
 	snapList := &clabernetesapisv1alpha1.SnapshotList{}
 
-	if err = fakeClient.List(context.Background(), snapList); err != nil {
+	err = fakeClient.List(context.Background(), snapList)
+	if err != nil {
 		t.Fatalf("failed listing snapshots: %s", err)
 	}
 

@@ -136,3 +136,7 @@ func (f fakeManager) GetRemoveTopologyPrefix() bool {
 func (f fakeManager) GetContainerlabVersion() string {
 	return ""
 }
+
+func (f fakeManager) GetContainerlabExtraArgs() []string {
+	return nil
+}

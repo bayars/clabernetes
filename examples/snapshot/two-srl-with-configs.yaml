@@ -1,0 +1,49 @@
+---
+# Two-node SR Linux topology with startup configs.
+#
+# This example demonstrates:
+# 1. A running two-node SR Linux lab with IP addresses pre-configured.
+# 2. How to trigger a snapshot via annotation.
+# 3. How to restore configs from a snapshot using filesFromConfigMap.
+#
+# --- Trigger a snapshot ---
+# kubectl annotate topology two-srl clabernetes/snapshotRequested=true
+#
+# --- Watch the Snapshot CR ---
+# kubectl get snapshots -l clabernetes/topologyOwner=two-srl -w
+#
+# --- Inspect the saved ConfigMap ---
+# SNAP=$(kubectl get snapshot -l clabernetes/topologyOwner=two-srl \
+#           -o jsonpath='{.items[0].metadata.name}')
+# kubectl get configmap "$SNAP" -o yaml
+#
+# --- Restore from snapshot (add filesFromConfigMap manually or use clabverter) ---
+# clabverter --topology two-srl.clab.yaml --from-snapshot "$SNAP" --output restored/
+apiVersion: clabernetes.containerlab.dev/v1alpha1
+kind: Topology
+metadata:
+  name: two-srl
+spec:
+  definition:
+    containerlab: |
+      name: two-srl
+      topology:
+        nodes:
+          srl1:
+            kind: nokia_srlinux
+            image: ghcr.io/nokia/srlinux:latest
+            startup-config: |
+              set / interface ethernet-1/1 admin-state enable
+              set / interface ethernet-1/1 subinterface 0 ipv4 admin-state enable
+              set / interface ethernet-1/1 subinterface 0 ipv4 address 10.0.0.1/24
+              set / network-instance default interface ethernet-1/1.0
+          srl2:
+            kind: nokia_srlinux
+            image: ghcr.io/nokia/srlinux:latest
+            startup-config: |
+              set / interface ethernet-1/1 admin-state enable
+              set / interface ethernet-1/1 subinterface 0 ipv4 admin-state enable
+              set / interface ethernet-1/1 subinterface 0 ipv4 address 10.0.0.2/24
+              set / network-instance default interface ethernet-1/1.0
+        links:
+          - endpoints: ["srl1:e1-1", "srl2:e1-1"]

@@ -60,12 +60,12 @@ func (c *Controller) ReconcileSnapshotAnnotation(
 		return fmt.Errorf("failed creating Snapshot CR %q: %w", snapshotName, err)
 	}
 
-	// TODO: Replace the []byte with appendf
 	// Remove the snapshotRequested annotation from the Topology
-	patchBytes := []byte(fmt.Sprintf(
+	patchBytes := fmt.Appendf(
+		nil,
 		`{"metadata":{"annotations":{%q:null}}}`,
 		clabernetesconstants.AnnotationSnapshotRequested,
-	))
+	)
 
 	err = c.BaseController.Client.Patch(
 		ctx,

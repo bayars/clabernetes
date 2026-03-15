@@ -6,16 +6,14 @@ import (
 	clabernetescontrollers "github.com/srl-labs/clabernetes/controllers"
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
-	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgorest "k8s.io/client-go/rest"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // NewTestController returns a minimal topology Controller suitable for unit tests.
-// It uses the provided fake client and scheme; no real Kubernetes connection is made.
+// It uses the provided fake client ; no real Kubernetes connection is made.
 func NewTestController(
 	client ctrlruntimeclient.Client,
-	scheme *apimachineryruntime.Scheme,
 ) *Controller {
 	claberneteslogging.InitManager()
 

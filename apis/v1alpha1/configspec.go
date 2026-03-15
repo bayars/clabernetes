@@ -78,6 +78,12 @@ type ConfigDeployment struct {
 	// *necessarily* mean it will be auto-working in clabernetes!
 	// +optional
 	ContainerlabVersion string `json:"containerlabVersion,omitempty"`
+	// ContainerlabExtraArgs is a list of additional arguments to pass to the containerlab deploy
+	// command when invoked in the launcher pods. For example, you can pass "--skip-post-deploy"
+	// to skip post-deploy actions.
+	// +optional
+	// +listType=atomic
+	ContainerlabExtraArgs []string `json:"containerlabExtraArgs"`
 	// LauncherImage sets the default launcher image to use when spawning launcher deployments.
 	// +kubebuilder:default="ghcr.io/srl-labs/clabernetes/clabernetes-launcher:latest"
 	LauncherImage string `json:"launcherImage"`

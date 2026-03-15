@@ -24,26 +24,24 @@ import (
 	gentype "k8s.io/client-go/gentype"
 )
 
-// fakeConnectivities implements ConnectivityInterface
-type fakeConnectivities struct {
-	*gentype.FakeClientWithList[*v1alpha1.Connectivity, *v1alpha1.ConnectivityList]
+// fakeSnapshots implements SnapshotInterface
+type fakeSnapshots struct {
+	*gentype.FakeClientWithList[*v1alpha1.Snapshot, *v1alpha1.SnapshotList]
 	Fake *FakeClabernetesV1alpha1
 }
 
-func newFakeConnectivities(fake *FakeClabernetesV1alpha1, namespace string) apisv1alpha1.ConnectivityInterface {
-	return &fakeConnectivities{
-		gentype.NewFakeClientWithList[*v1alpha1.Connectivity, *v1alpha1.ConnectivityList](
+func newFakeSnapshots(fake *FakeClabernetesV1alpha1, namespace string) apisv1alpha1.SnapshotInterface {
+	return &fakeSnapshots{
+		gentype.NewFakeClientWithList[*v1alpha1.Snapshot, *v1alpha1.SnapshotList](
 			fake.Fake,
 			namespace,
-			v1alpha1.SchemeGroupVersion.WithResource("connectivities"),
-			v1alpha1.SchemeGroupVersion.WithKind("Connectivity"),
-			func() *v1alpha1.Connectivity { return &v1alpha1.Connectivity{} },
-			func() *v1alpha1.ConnectivityList { return &v1alpha1.ConnectivityList{} },
-			func(dst, src *v1alpha1.ConnectivityList) { dst.ListMeta = src.ListMeta },
-			func(list *v1alpha1.ConnectivityList) []*v1alpha1.Connectivity {
-				return gentype.ToPointerSlice(list.Items)
-			},
-			func(list *v1alpha1.ConnectivityList, items []*v1alpha1.Connectivity) {
+			v1alpha1.SchemeGroupVersion.WithResource("snapshots"),
+			v1alpha1.SchemeGroupVersion.WithKind("Snapshot"),
+			func() *v1alpha1.Snapshot { return &v1alpha1.Snapshot{} },
+			func() *v1alpha1.SnapshotList { return &v1alpha1.SnapshotList{} },
+			func(dst, src *v1alpha1.SnapshotList) { dst.ListMeta = src.ListMeta },
+			func(list *v1alpha1.SnapshotList) []*v1alpha1.Snapshot { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1alpha1.SnapshotList, items []*v1alpha1.Snapshot) {
 				list.Items = gentype.FromPointerSlice(items)
 			},
 		),

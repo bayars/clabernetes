@@ -24,4 +24,6 @@ type ConnectivityExpansion interface{}
 
 type ImageRequestExpansion interface{}
 
+type SnapshotExpansion interface{}
+
 type TopologyExpansion interface{}

@@ -771,6 +771,11 @@ func (r *DeploymentReconciler) renderDeploymentContainerEnv( //nolint: funlen
 		containerlabTimeout = r.configManagerGetter().GetContainerlabTimeout()
 	}
 
+	containerlabExtraArgs := owningTopology.Spec.Deployment.ContainerlabExtraArgs
+	if len(containerlabExtraArgs) == 0 {
+		containerlabExtraArgs = r.configManagerGetter().GetContainerlabExtraArgs()
+	}
+
 	envs := []k8scorev1.EnvVar{
 		{
 			Name: clabernetesconstants.NodeNameEnv,
@@ -842,6 +847,10 @@ func (r *DeploymentReconciler) renderDeploymentContainerEnv( //nolint: funlen
 		{
 			Name:  clabernetesconstants.LauncherContainerlabTimeout,
 			Value: containerlabTimeout,
+		},
+		{
+			Name:  clabernetesconstants.LauncherContainerlabExtraArgs,
+			Value: strings.Join(containerlabExtraArgs, ","),
 		},
 	}
 

@@ -138,6 +138,9 @@
                                 "name": "LAUNCHER_CONTAINERLAB_TIMEOUT"
                             },
                             {
+                                "name": "LAUNCHER_CONTAINERLAB_EXTRA_ARGS"
+                            },
+                            {
                                 "name": "LAUNCHER_CONTAINERLAB_DEBUG",
                                 "value": "true"
                             },

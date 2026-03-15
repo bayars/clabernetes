@@ -208,6 +208,26 @@ func schema_srl_labs_clabernetes_apis_v1alpha1_ConfigDeployment(ref common.Refer
 							Format:      "",
 						},
 					},
+					"containerlabExtraArgs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "ContainerlabExtraArgs is a list of additional arguments to pass to the containerlab deploy command when invoked in the launcher pods. For example, you can pass \"--skip-post-deploy\" to skip post-deploy actions.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
 					"launcherImage": {
 						SchemaProps: spec.SchemaProps{
 							Description: "LauncherImage sets the default launcher image to use when spawning launcher deployments.",
@@ -741,6 +761,26 @@ func schema_srl_labs_clabernetes_apis_v1alpha1_Deployment(ref common.ReferenceCa
 							Description: "ContainerlabVersion sets a custom version to use for containerlab -- when set this will cause the launcher pods to download and use this specific version of containerlab. Setting a bad version (version that doesnt exist/typo/etc.) will cause pods to fail to launch, so be careful! You never \"need\" to this as the publicly available launcher image will always be built with a (reasonably) up to date containerlab version, this setting exists in case you want to pin back to an older version for some reason or you want to be bleeding edge with some new feature (but do note that just because it exists in containerlab doesnt *necessarily* mean it will be auto-working in clabernetes!",
 							Type:        []string{"string"},
 							Format:      "",
+						},
+					},
+					"containerlabExtraArgs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "ContainerlabExtraArgs is a list of additional arguments to pass to the containerlab deploy command when invoked in the launcher pods. For example, you can pass \"--skip-post-deploy\" to skip post-deploy actions. If this value is unset, the global config value will be used.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
 						},
 					},
 					"launcherImage": {
