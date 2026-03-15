@@ -54,47 +54,30 @@ func (c *Controller) Reconcile(
 		return ctrlruntime.Result{}, nil
 	}
 
-	// Set phase to Running
-	snapshot.Status.Phase = clabernetesapisv1alpha1.SnapshotPhaseRunning
-
-	err = c.BaseController.Client.Status().Update(ctx, snapshot)
+	result, err := c.reconcileSnapshot(ctx, snapshot)
 	if err != nil {
-		c.BaseController.Log.Warnf(
-			"failed updating snapshot '%s/%s' status to Running, error: %s",
-			snapshot.Namespace,
-			snapshot.Name,
-			err,
-		)
+		return result, err
+	}
 
+	c.BaseController.LogReconcileCompleteSuccess(req)
+
+	return result, nil
+}
+
+func (c *Controller) reconcileSnapshot(
+	ctx context.Context,
+	snapshot *clabernetesapisv1alpha1.Snapshot,
+) (ctrlruntime.Result, error) {
+	err := c.setSnapshotRunning(ctx, snapshot)
+	if err != nil {
 		return ctrlruntime.Result{}, err
 	}
 
-	// Look up the referenced Topology
-	topologyNamespace := snapshot.Spec.TopologyNamespace
-	if topologyNamespace == "" {
-		topologyNamespace = snapshot.Namespace
-	}
-
-	topology := &clabernetesapisv1alpha1.Topology{}
-
-	err = c.BaseController.Client.Get(
-		ctx,
-		apimachinerytypes.NamespacedName{
-			Namespace: topologyNamespace,
-			Name:      snapshot.Spec.TopologyRef,
-		},
-		topology,
-	)
+	topology, topologyNamespace, err := c.fetchReferencedTopology(ctx, snapshot)
 	if err != nil {
-		return c.failSnapshot(ctx, snapshot, fmt.Sprintf(
-			"failed fetching topology '%s/%s': %s",
-			topologyNamespace,
-			snapshot.Spec.TopologyRef,
-			err,
-		))
+		return c.failSnapshot(ctx, snapshot, err.Error())
 	}
 
-	// Collect node names from topology status
 	nodeNames := make([]string, 0, len(topology.Status.NodeReadiness))
 	for nodeName := range topology.Status.NodeReadiness {
 		nodeNames = append(nodeNames, nodeName)
@@ -104,9 +87,71 @@ func (c *Controller) Reconcile(
 		return c.failSnapshot(ctx, snapshot, "topology has no nodes in NodeReadiness status")
 	}
 
-	// For each node, exec containerlab save and collect configs
-	configMapData := make(map[string]string)
-	nodeConfigs := make(map[string][]string)
+	configMapData, nodeConfigs := c.collectNodeSnapshots(
+		ctx, snapshot, topologyNamespace, nodeNames,
+	)
+
+	return c.finalizeSnapshot(ctx, snapshot, topology, configMapData, nodeConfigs)
+}
+
+func (c *Controller) setSnapshotRunning(
+	ctx context.Context,
+	snapshot *clabernetesapisv1alpha1.Snapshot,
+) error {
+	snapshot.Status.Phase = clabernetesapisv1alpha1.SnapshotPhaseRunning
+
+	err := c.BaseController.Client.Status().Update(ctx, snapshot)
+	if err != nil {
+		c.BaseController.Log.Warnf(
+			"failed updating snapshot '%s/%s' status to Running, error: %s",
+			snapshot.Namespace,
+			snapshot.Name,
+			err,
+		)
+	}
+
+	return err
+}
+
+func (c *Controller) fetchReferencedTopology(
+	ctx context.Context,
+	snapshot *clabernetesapisv1alpha1.Snapshot,
+) (*clabernetesapisv1alpha1.Topology, string, error) {
+	topologyNamespace := snapshot.Spec.TopologyNamespace
+	if topologyNamespace == "" {
+		topologyNamespace = snapshot.Namespace
+	}
+
+	topology := &clabernetesapisv1alpha1.Topology{}
+
+	err := c.BaseController.Client.Get(
+		ctx,
+		apimachinerytypes.NamespacedName{
+			Namespace: topologyNamespace,
+			Name:      snapshot.Spec.TopologyRef,
+		},
+		topology,
+	)
+	if err != nil {
+		return nil, "", fmt.Errorf(
+			"failed fetching topology '%s/%s': %w",
+			topologyNamespace,
+			snapshot.Spec.TopologyRef,
+			err,
+		)
+	}
+
+	return topology, topologyNamespace, nil
+}
+
+func (c *Controller) collectNodeSnapshots(
+	ctx context.Context,
+	snapshot *clabernetesapisv1alpha1.Snapshot,
+	topologyNamespace string,
+	nodeNames []string,
+) (configMapData map[string]string, nodeConfigs map[string][]string) {
+	configMapData = make(map[string]string)
+	nodeConfigs = make(map[string][]string)
 
 	for _, nodeName := range nodeNames {
 		c.BaseController.Log.Infof(
@@ -115,146 +160,150 @@ func (c *Controller) Reconcile(
 			snapshot.Spec.TopologyRef,
 		)
 
-		// Find launcher pod for this node
-		podList := &k8scorev1.PodList{}
-
-		err = c.BaseController.Client.List(
-			ctx,
-			podList,
-			ctrlruntimeclient.InNamespace(topologyNamespace),
-			ctrlruntimeclient.MatchingLabels{
-				clabernetesconstants.LabelTopologyOwner: snapshot.Spec.TopologyRef,
-				clabernetesconstants.LabelTopologyNode:  nodeName,
-			},
-		)
-		if err != nil {
-			c.BaseController.Log.Warnf(
-				"failed listing pods for node %q: %s, skipping",
-				nodeName,
-				err,
-			)
-
-			continue
-		}
-
-		if len(podList.Items) == 0 {
-			c.BaseController.Log.Warnf(
-				"no pods found for node %q, skipping",
-				nodeName,
-			)
-
-			continue
-		}
-
-		// Use the first running pod
-		var targetPod *k8scorev1.Pod
-
-		for idx := range podList.Items {
-			if podList.Items[idx].Status.Phase == k8scorev1.PodRunning {
-				targetPod = &podList.Items[idx]
-
-				break
-			}
-		}
-
+		targetPod := c.findRunningPod(ctx, topologyNamespace, snapshot.Spec.TopologyRef, nodeName)
 		if targetPod == nil {
-			c.BaseController.Log.Warnf(
-				"no running pod found for node %q, skipping",
-				nodeName,
-			)
-
 			continue
 		}
 
-		// Run containerlab save
-		saveOutput, saveErr := c.execInPod(
-			ctx,
-			topologyNamespace,
-			targetPod.Name,
-			nodeName,
-			[]string{
-				"sh",
-				"-c",
-				"cd /clabernetes && containerlab save -t topo.clab.yaml 2>&1",
-			},
+		nodeFileKeys := c.saveAndCollectNodeFiles(
+			ctx, topologyNamespace, targetPod.Name, nodeName, configMapData,
 		)
-		if saveErr != nil {
-			c.BaseController.Log.Warnf(
-				"containerlab save failed for node %q: %s",
-				nodeName,
-				saveErr,
-			)
-		}
-
-		// Store save output
-		saveOutputKey := fmt.Sprintf("%s/save-output", nodeName)
-		configMapData[saveOutputKey] = saveOutput
-
-		// List saved files
-		savedFilesOutput, listErr := c.execInPod(
-			ctx,
-			topologyNamespace,
-			targetPod.Name,
-			nodeName,
-			[]string{
-				"sh",
-				"-c",
-				fmt.Sprintf(
-					"find /clabernetes/clab-clabernetes-%s/%s/ -type f 2>/dev/null",
-					nodeName,
-					nodeName,
-				),
-			},
-		)
-		if listErr != nil {
-			c.BaseController.Log.Warnf(
-				"failed listing saved files for node %q: %s",
-				nodeName,
-				listErr,
-			)
-
-			continue
-		}
-
-		savedFiles := strings.Split(strings.TrimSpace(savedFilesOutput), "\n")
-		var nodeFileKeys []string
-
-		for _, filePath := range savedFiles {
-			filePath = strings.TrimSpace(filePath)
-			if filePath == "" {
-				continue
-			}
-
-			// Read the file content
-			fileContent, readErr := c.execInPod(
-				ctx,
-				topologyNamespace,
-				targetPod.Name,
-				nodeName,
-				[]string{"cat", filePath},
-			)
-			if readErr != nil {
-				c.BaseController.Log.Warnf(
-					"failed reading file %q for node %q: %s",
-					filePath,
-					nodeName,
-					readErr,
-				)
-
-				continue
-			}
-
-			// Build ConfigMap key: <nodeName>/<filename>
-			fileName := filePath[strings.LastIndex(filePath, "/")+1:]
-			key := fmt.Sprintf("%s/%s", nodeName, fileName)
-			configMapData[key] = fileContent
-			nodeFileKeys = append(nodeFileKeys, key)
-		}
 
 		nodeConfigs[nodeName] = nodeFileKeys
 	}
 
-	// Create the ConfigMap
+	return configMapData, nodeConfigs
+}
+
+func (c *Controller) findRunningPod(
+	ctx context.Context,
+	namespace, topologyRef, nodeName string,
+) *k8scorev1.Pod {
+	podList := &k8scorev1.PodList{}
+
+	err := c.BaseController.Client.List(
+		ctx,
+		podList,
+		ctrlruntimeclient.InNamespace(namespace),
+		ctrlruntimeclient.MatchingLabels{
+			clabernetesconstants.LabelTopologyOwner: topologyRef,
+			clabernetesconstants.LabelTopologyNode:  nodeName,
+		},
+	)
+	if err != nil {
+		c.BaseController.Log.Warnf(
+			"failed listing pods for node %q: %s, skipping",
+			nodeName,
+			err,
+		)
+
+		return nil
+	}
+
+	if len(podList.Items) == 0 {
+		c.BaseController.Log.Warnf("no pods found for node %q, skipping", nodeName)
+
+		return nil
+	}
+
+	for idx := range podList.Items {
+		if podList.Items[idx].Status.Phase == k8scorev1.PodRunning {
+			return &podList.Items[idx]
+		}
+	}
+
+	c.BaseController.Log.Warnf("no running pod found for node %q, skipping", nodeName)
+
+	return nil
+}
+
+func (c *Controller) saveAndCollectNodeFiles(
+	ctx context.Context,
+	namespace, podName, nodeName string,
+	configMapData map[string]string,
+) []string {
+	saveOutput, saveErr := c.execInPod(
+		ctx,
+		namespace,
+		podName,
+		nodeName,
+		[]string{
+			"sh",
+			"-c",
+			"cd /clabernetes && containerlab save -t topo.clab.yaml 2>&1",
+		},
+	)
+	if saveErr != nil {
+		c.BaseController.Log.Warnf("containerlab save failed for node %q: %s", nodeName, saveErr)
+	}
+
+	configMapData[fmt.Sprintf("%s/save-output", nodeName)] = saveOutput
+
+	savedFilesOutput, listErr := c.execInPod(
+		ctx,
+		namespace,
+		podName,
+		nodeName,
+		[]string{
+			"sh",
+			"-c",
+			fmt.Sprintf(
+				"find /clabernetes/clab-clabernetes-%s/%s/ -type f 2>/dev/null",
+				nodeName,
+				nodeName,
+			),
+		},
+	)
+	if listErr != nil {
+		c.BaseController.Log.Warnf(
+			"failed listing saved files for node %q: %s",
+			nodeName,
+			listErr,
+		)
+
+		return nil
+	}
+
+	savedFiles := strings.Split(strings.TrimSpace(savedFilesOutput), "\n")
+
+	nodeFileKeys := make([]string, 0, len(savedFiles))
+
+	for _, filePath := range savedFiles {
+		filePath = strings.TrimSpace(filePath)
+		if filePath == "" {
+			continue
+		}
+
+		fileContent, readErr := c.execInPod(
+			ctx, namespace, podName, nodeName, []string{"cat", filePath},
+		)
+		if readErr != nil {
+			c.BaseController.Log.Warnf(
+				"failed reading file %q for node %q: %s",
+				filePath,
+				nodeName,
+				readErr,
+			)
+
+			continue
+		}
+
+		fileName := filePath[strings.LastIndex(filePath, "/")+1:]
+		key := fmt.Sprintf("%s/%s", nodeName, fileName)
+		configMapData[key] = fileContent
+		nodeFileKeys = append(nodeFileKeys, key)
+	}
+
+	return nodeFileKeys
+}
+
+func (c *Controller) finalizeSnapshot(
+	ctx context.Context,
+	snapshot *clabernetesapisv1alpha1.Snapshot,
+	topology *clabernetesapisv1alpha1.Topology,
+	configMapData map[string]string,
+	nodeConfigs map[string][]string,
+) (ctrlruntime.Result, error) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	configMap := &k8scorev1.ConfigMap{
@@ -271,8 +320,7 @@ func (c *Controller) Reconcile(
 		Data: configMapData,
 	}
 
-	// Set owner reference so ConfigMap is GC'd when Snapshot is deleted
-	err = ctrlruntimeutil.SetOwnerReference(snapshot, configMap, c.BaseController.Client.Scheme())
+	err := ctrlruntimeutil.SetOwnerReference(snapshot, configMap, c.BaseController.Client.Scheme())
 	if err != nil {
 		return c.failSnapshot(
 			ctx,
@@ -290,7 +338,6 @@ func (c *Controller) Reconcile(
 		)
 	}
 
-	// Update Snapshot status to Completed
 	snapshot.Status.Phase = clabernetesapisv1alpha1.SnapshotPhaseCompleted
 	snapshot.Status.ConfigMapRef = snapshot.Name
 	snapshot.Status.Timestamp = timestamp
@@ -308,16 +355,26 @@ func (c *Controller) Reconcile(
 		return ctrlruntime.Result{}, err
 	}
 
-	// Patch Topology annotations with snapshot info
-	patchBytes := []byte(fmt.Sprintf(
+	c.patchTopologySnapshotAnnotations(ctx, topology, snapshot.Name, timestamp)
+
+	return ctrlruntime.Result{}, nil
+}
+
+func (c *Controller) patchTopologySnapshotAnnotations(
+	ctx context.Context,
+	topology *clabernetesapisv1alpha1.Topology,
+	snapshotName, timestamp string,
+) {
+	patchBytes := fmt.Appendf(
+		nil,
 		`{"metadata":{"annotations":{%q:%q,%q:%q}}}`,
 		clabernetesconstants.AnnotationSnapshotTimestamp,
 		timestamp,
 		clabernetesconstants.AnnotationSnapshotLatest,
-		snapshot.Name,
-	))
+		snapshotName,
+	)
 
-	err = c.BaseController.Client.Patch(
+	err := c.BaseController.Client.Patch(
 		ctx,
 		topology,
 		ctrlruntimeclient.RawPatch(apimachinerytypes.MergePatchType, patchBytes),
@@ -327,12 +384,7 @@ func (c *Controller) Reconcile(
 			"failed patching topology annotations with snapshot info: %s",
 			err,
 		)
-		// Non-fatal
 	}
-
-	c.BaseController.LogReconcileCompleteSuccess(req)
-
-	return ctrlruntime.Result{}, nil
 }
 
 // failSnapshot sets the Snapshot status to Failed with the given message and returns.
@@ -341,7 +393,9 @@ func (c *Controller) failSnapshot(
 	snapshot *clabernetesapisv1alpha1.Snapshot,
 	message string,
 ) (ctrlruntime.Result, error) {
-	c.BaseController.Log.Warnf("snapshot '%s/%s' failed: %s", snapshot.Namespace, snapshot.Name, message)
+	c.BaseController.Log.Warnf(
+		"snapshot '%s/%s' failed: %s", snapshot.Namespace, snapshot.Name, message,
+	)
 
 	snapshot.Status.Phase = clabernetesapisv1alpha1.SnapshotPhaseFailed
 	snapshot.Status.Message = message

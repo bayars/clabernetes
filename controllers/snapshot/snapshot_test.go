@@ -18,11 +18,13 @@ func newTestScheme(t *testing.T) *apimachineryruntime.Scheme {
 
 	scheme := apimachineryruntime.NewScheme()
 
-	if err := clabernetesapisv1alpha1.AddToScheme(scheme); err != nil {
+	err := clabernetesapisv1alpha1.AddToScheme(scheme)
+	if err != nil {
 		t.Fatalf("failed adding clabernetes scheme: %s", err)
 	}
 
-	if err := k8scorev1.AddToScheme(scheme); err != nil {
+	err = k8scorev1.AddToScheme(scheme)
+	if err != nil {
 		t.Fatalf("failed adding core v1 scheme: %s", err)
 	}
 
@@ -67,7 +69,9 @@ func TestSnapshotPhaseSkipping(t *testing.T) {
 
 			// Confirm no ConfigMaps exist initially.
 			cmList := &k8scorev1.ConfigMapList{}
-			if err := fakeClient.List(context.Background(), cmList); err != nil {
+
+			err := fakeClient.List(context.Background(), cmList)
+			if err != nil {
 				t.Fatalf("failed listing configmaps: %s", err)
 			}
 
