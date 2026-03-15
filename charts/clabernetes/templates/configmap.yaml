@@ -45,6 +45,10 @@ data:
   {{- if .Values.globalConfig.deployment.containerlabVersion }}
   containerlabVersion: {{ .Values.globalConfig.deployment.containerlabVersion }}
   {{- end }}
+  {{- if .Values.globalConfig.deployment.containerlabExtraArgs }}
+  containerlabExtraArgs: |-
+{{ .Values.globalConfig.deployment.containerlabExtraArgs | toYaml | indent 4 }}
+  {{- end }}
   imagePullThroughMode: {{ .Values.globalConfig.imagePull.imagePullThroughMode }}
   {{- if .Values.globalConfig.deployment.launcherImage }}
   launcherImage: {{ .Values.globalConfig.deployment.launcherImage }}
