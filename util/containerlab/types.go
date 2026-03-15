@@ -57,7 +57,7 @@ func (t *Topology) GetNodeKindType(nodeName string) (
 		}
 	}
 
-	kindDefinition, kindDefinitionOk := t.Kinds[nodeName]
+	kindDefinition, kindDefinitionOk := t.Kinds[containerlabKind]
 	if kindDefinitionOk {
 		if kindDefinition.Type != "" {
 			containerlabType = kindDefinition.Type
