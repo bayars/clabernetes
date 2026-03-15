@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
@@ -129,6 +130,16 @@ func (c *clabernetes) runContainerlab() error {
 	containerlabTimeout := os.Getenv(clabernetesconstants.LauncherContainerlabTimeout)
 	if containerlabTimeout != "" {
 		args = append(args, []string{"--timeout", containerlabTimeout}...)
+	}
+
+	containerlabExtraArgs := os.Getenv(clabernetesconstants.LauncherContainerlabExtraArgs)
+	if containerlabExtraArgs != "" {
+		for _, extraArg := range strings.Split(containerlabExtraArgs, ",") {
+			extraArg = strings.TrimSpace(extraArg)
+			if extraArg != "" {
+				args = append(args, extraArg)
+			}
+		}
 	}
 
 	cmd := exec.CommandContext(c.ctx, "containerlab", args...)
