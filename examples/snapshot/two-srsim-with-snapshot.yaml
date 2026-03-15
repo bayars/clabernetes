@@ -1,0 +1,66 @@
+---
+# Two-node Nokia SR-SIM topology with snapshot support.
+#
+# SR-SIM (nokia_srsim) uses the same containerlab save mechanism as SR OS.
+# The snapshot controller execs:
+#   sh -c "cd /clabernetes && containerlab save -t topo.clab.yaml 2>&1"
+# inside each launcher pod and collects the resulting files from:
+#   /clabernetes/clab-clabernetes-<nodeName>/<nodeName>/
+#
+# For nokia_srsim, containerlab save produces a config.cfg (or similar
+# checkpoint file) that can be used as a startup-config on the next launch.
+#
+# ConfigMap keys after snapshot:
+#   router1/config.cfg       → saved SR-SIM checkpoint config
+#   router1/save-output      → stdout from containerlab save
+#   router2/config.cfg
+#   router2/save-output
+#
+# IMPORTANT:
+# - A valid SR-SIM license is required at /opt/nokia/sros/license.txt
+# - The nokia_srsim image must be pre-loaded in your container runtime
+#
+# Trigger snapshot:
+#   kubectl annotate topology two-srsim clabernetes/snapshotRequested=true
+apiVersion: clabernetes.containerlab.dev/v1alpha1
+kind: Topology
+metadata:
+  name: two-srsim
+spec:
+  deployment:
+    resources:
+      router1:
+        requests:
+          memory: "4Gi"
+          cpu: "2"
+        limits:
+          memory: "8Gi"
+          cpu: "4"
+      router2:
+        requests:
+          memory: "4Gi"
+          cpu: "2"
+        limits:
+          memory: "8Gi"
+          cpu: "4"
+  definition:
+    containerlab: |
+      name: two-srsim
+      topology:
+        kinds:
+          nokia_srsim:
+            image: nokia_srsim:25.7.R1
+            license: /opt/nokia/sros/license.txt
+        nodes:
+          router1:
+            kind: nokia_srsim
+            type: sr-1
+            env:
+              NOKIA_SROS_MDA_1: me6-100gb-qsfp28
+          router2:
+            kind: nokia_srsim
+            type: sr-1s
+            env:
+              NOKIA_SROS_MDA_1: me6-100gb-qsfp28
+        links:
+          - endpoints: ["router1:1/1/c1/1", "router2:1/1/c1/1"]

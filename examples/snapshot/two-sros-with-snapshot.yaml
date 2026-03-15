@@ -1,0 +1,47 @@
+---
+# Two-node Nokia SR OS (vrnetlab) topology with snapshot support.
+#
+# nokia_sros uses vrnetlab to run SROS in a container. containerlab save
+# connects via NETCONF and writes the running configuration to:
+#   /clabernetes/clab-clabernetes-<nodeName>/<nodeName>/config.txt
+#
+# ConfigMap keys after snapshot:
+#   sros1/config.txt    → full running config saved via NETCONF
+#   sros1/save-output   → stdout from containerlab save
+#   sros2/config.txt
+#   sros2/save-output
+#
+# Trigger snapshot:
+#   kubectl annotate topology two-sros clabernetes/snapshotRequested=true
+apiVersion: clabernetes.containerlab.dev/v1alpha1
+kind: Topology
+metadata:
+  name: two-sros
+spec:
+  definition:
+    containerlab: |
+      name: two-sros
+      topology:
+        nodes:
+          sros1:
+            kind: nokia_sros
+            image: vrnetlab/nokia_sros:latest
+            startup-config: |
+              /configure system name "sros1"
+              /configure card 1 card-type iom-1
+              /configure card 1 mda 1 mda-type me6-100gb-qsfp28
+              /configure port 1/1/c1/1 admin-state enable
+              /configure router "Base" interface "toSROS2" port 1/1/c1/1
+              /configure router "Base" interface "toSROS2" ipv4 primary address 10.0.0.1 prefix-length 24
+          sros2:
+            kind: nokia_sros
+            image: vrnetlab/nokia_sros:latest
+            startup-config: |
+              /configure system name "sros2"
+              /configure card 1 card-type iom-1
+              /configure card 1 mda 1 mda-type me6-100gb-qsfp28
+              /configure port 1/1/c1/1 admin-state enable
+              /configure router "Base" interface "toSROS1" port 1/1/c1/1
+              /configure router "Base" interface "toSROS1" ipv4 primary address 10.0.0.2 prefix-length 24
+        links:
+          - endpoints: ["sros1:1/1/c1/1", "sros2:1/1/c1/1"]
