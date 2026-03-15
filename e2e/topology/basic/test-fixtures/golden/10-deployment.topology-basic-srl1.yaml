@@ -77,6 +77,7 @@ spec:
               value: vxlan
             - name: LAUNCHER_CONTAINERLAB_VERSION
             - name: LAUNCHER_CONTAINERLAB_TIMEOUT
+            - name: LAUNCHER_CONTAINERLAB_EXTRA_ARGS
             - name: LAUNCHER_PRIVILEGED
               value: "true"
           imagePullPolicy: IfNotPresent
