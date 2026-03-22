@@ -159,6 +159,9 @@ type Manager interface { //nolint: interfacebloat
 	GetContainerlabVersion() string
 	// GetContainerRuntime returns the global config container runtime for launcher pods.
 	GetContainerRuntime() string
+	// GetContainerlabExtraArgs returns the global config extra args to append to containerlab
+	// deploy commands.
+	GetContainerlabExtraArgs() []string
 }
 
 type manager struct {

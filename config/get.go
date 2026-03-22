@@ -189,3 +189,10 @@ func (m *manager) GetContainerRuntime() string {
 
 	return m.config.Deployment.ContainerRuntime
 }
+
+func (m *manager) GetContainerlabExtraArgs() []string {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	return m.config.Deployment.ContainerlabExtraArgs
+}

@@ -219,6 +219,13 @@ type Deployment struct {
 	// +kubebuilder:validation:Enum=docker;containerd
 	// +optional
 	ContainerRuntime string `json:"containerRuntime,omitempty"`
+	// ContainerlabExtraArgs is a list of extra arguments to append to the containerlab deploy
+	// command. This can be used to pass custom flags (e.g. "--skip-post-deploy",
+	// "--max-workers 1") without needing to rebuild the launcher image. Arguments are appended
+	// after all other generated args. Values here override any global config ContainerlabExtraArgs.
+	// +optional
+	// +listType=atomic
+	ContainerlabExtraArgs []string `json:"containerlabExtraArgs,omitempty"`
 	// ExtraEnv is a list of additional environment variables to set on the launcher container. The
 	// values here override any configured global config extra envs!
 	// +optional

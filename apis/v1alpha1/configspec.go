@@ -98,6 +98,11 @@ type ConfigDeployment struct {
 	// +kubebuilder:validation:Enum=docker;containerd
 	// +optional
 	ContainerRuntime string `json:"containerRuntime,omitempty"`
+	// ContainerlabExtraArgs is a list of extra arguments to append to the containerlab deploy
+	// command for all launchers. Per-topology ContainerlabExtraArgs overrides this when set.
+	// +optional
+	// +listType=atomic
+	ContainerlabExtraArgs []string `json:"containerlabExtraArgs,omitempty"`
 	// ExtraEnv is a list of additional environment variables to set on the launcher container. The
 	// values here are applied to *all* launchers since this is the global config after all!
 	// +optional

@@ -57,6 +57,10 @@ const (
 	// persistence of clabernetes when invoked on the launcher pod.
 	LauncherContainerlabPersist = "LAUNCHER_CONTAINERLAB_PERSIST"
 
+	// LauncherContainerlabExtraArgs is the environment variable name holding a space-separated
+	// list of extra arguments to append to the containerlab deploy command.
+	LauncherContainerlabExtraArgs = "LAUNCHER_CONTAINERLAB_EXTRA_ARGS"
+
 	// LauncherImageEnv env var that tells the controllers what image to use for clabernetes
 	// (launcher) pods.
 	LauncherImageEnv = "LAUNCHER_IMAGE"

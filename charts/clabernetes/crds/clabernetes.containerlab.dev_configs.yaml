@@ -61,6 +61,14 @@ spec:
                       ContainerlabDebug sets the `--debug` flag when invoking containerlab in the launcher pods.
                       This is disabled by default.
                     type: boolean
+                  containerlabExtraArgs:
+                    description: |-
+                      ContainerlabExtraArgs is a list of extra arguments to append to the containerlab deploy
+                      command for all launchers. Per-topology ContainerlabExtraArgs overrides this when set.
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-list-type: atomic
                   containerlabTimeout:
                     description: |-
                       ContainerlabTimeout sets the `--timeout` flag when invoking containerlab in the launcher

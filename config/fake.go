@@ -140,3 +140,7 @@ func (f fakeManager) GetContainerlabVersion() string {
 func (f fakeManager) GetContainerRuntime() string {
 	return ""
 }
+
+func (f fakeManager) GetContainerlabExtraArgs() []string {
+	return nil
+}

@@ -101,6 +101,16 @@ spec:
                       This is disabled by default. If this value is unset, the global config value (default of
                       "false") will be used.
                     type: boolean
+                  containerlabExtraArgs:
+                    description: |-
+                      ContainerlabExtraArgs is a list of extra arguments to append to the containerlab deploy
+                      command. This can be used to pass custom flags (e.g. "--skip-post-deploy",
+                      "--max-workers 1") without needing to rebuild the launcher image. Arguments are appended
+                      after all other generated args. Values here override any global config ContainerlabExtraArgs.
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-list-type: atomic
                   containerlabTimeout:
                     description: |-
                       ContainerlabTimeout sets the `--timeout` flag when invoking containerlab in the launcher

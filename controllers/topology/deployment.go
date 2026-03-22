@@ -141,6 +141,17 @@ func (r *DeploymentReconciler) Render(
 		owningTopology,
 	)
 
+	// In containerd mode, CNI plugins are invoked by the host containerd daemon and create
+	// network interfaces (e.g. veth pairs) in the HOST network namespace. The launcher pod
+	// must use hostNetwork so it shares the host netns and can clean up stale interfaces.
+	if r.resolveContainerRuntime(owningTopology) == clabernetesconstants.LauncherContainerRuntimeContainerd {
+		deployment.Spec.Template.Spec.HostNetwork = true
+		// With hostNetwork:true the pod inherits the host's /etc/resolv.conf which typically
+		// points to a public DNS server (e.g. 8.8.8.8). ClusterFirstWithHostNet ensures the
+		// pod still uses CoreDNS for cluster-internal name resolution (VXLAN service endpoints).
+		deployment.Spec.Template.Spec.DNSPolicy = k8scorev1.DNSClusterFirstWithHostNet
+	}
+
 	volumeMountsFromCommonSpec := r.renderDeploymentVolumes(
 		deployment,
 		nodeName,
@@ -470,16 +481,58 @@ func (r *DeploymentReconciler) renderDeploymentVolumes( //nolint:funlen
 
 	// /run/netns hostPath is needed in containerd mode so that named network namespaces
 	// created inside the launcher pod propagate to the host (Bidirectional mount propagation).
+	// /etc/containerd/certs.d hostPath is needed so that the containerd fork binary running inside
+	// the launcher pod can resolve insecure (plain-HTTP) registries via hosts.toml files.
 	if isContainerd {
-		volumes = append(volumes, k8scorev1.Volume{
-			Name: "netns",
-			VolumeSource: k8scorev1.VolumeSource{
-				HostPath: &k8scorev1.HostPathVolumeSource{
-					Path: "/run/netns",
-					Type: clabernetesutil.ToPointer(k8scorev1.HostPathDirectoryOrCreate),
+		volumes = append(volumes,
+			k8scorev1.Volume{
+				Name: "netns",
+				VolumeSource: k8scorev1.VolumeSource{
+					HostPath: &k8scorev1.HostPathVolumeSource{
+						Path: "/run/netns",
+						Type: clabernetesutil.ToPointer(k8scorev1.HostPathDirectoryOrCreate),
+					},
 				},
 			},
-		})
+			k8scorev1.Volume{
+				Name: "containerd-certs",
+				VolumeSource: k8scorev1.VolumeSource{
+					HostPath: &k8scorev1.HostPathVolumeSource{
+						Path: "/etc/containerd/certs.d",
+						Type: clabernetesutil.ToPointer(k8scorev1.HostPathDirectoryOrCreate),
+					},
+				},
+			},
+			// containerd snapshotter data: the overlayfs snapshot directories live on the
+			// host. When the containerd API creates/mounts a container snapshot (via the
+			// socket), the mount source path is on the host filesystem. Bind-mounting
+			// /var/lib/containerd into the pod at the same path makes those paths valid
+			// inside the pod so that container creation and exec work correctly.
+			k8scorev1.Volume{
+				Name: "containerd-data",
+				VolumeSource: k8scorev1.VolumeSource{
+					HostPath: &k8scorev1.HostPathVolumeSource{
+						Path: "/var/lib/containerd",
+						Type: clabernetesutil.ToPointer(k8scorev1.HostPathDirectory),
+					},
+				},
+			},
+			// Containerlab writes per-node lab files under <workdir>/clab-<app>-<node>/.
+			// Host containerd (accessed via socket) bind-mounts those files when starting
+			// the NOS container, but it resolves paths on the HOST filesystem, not the
+			// pod's overlay. We mount /var/lib/clabernetes from the host at the same path
+			// in the pod; the launcher sets containerlab's cwd to this directory so all
+			// lab files end up at a path that's accessible from both the pod and the host.
+			k8scorev1.Volume{
+				Name: "clabernetes-labdir",
+				VolumeSource: k8scorev1.VolumeSource{
+					HostPath: &k8scorev1.HostPathVolumeSource{
+						Path: "/var/lib/clabernetes",
+						Type: clabernetesutil.ToPointer(k8scorev1.HostPathDirectoryOrCreate),
+					},
+				},
+			},
+		)
 	}
 
 	volumeMountsFromCommonSpec := make([]k8scorev1.VolumeMount, 0)
@@ -794,13 +847,30 @@ func (r *DeploymentReconciler) renderDeploymentContainer(
 
 	// /run/netns with Bidirectional mount propagation is needed in containerd mode so that
 	// named network namespaces created inside the pod are visible on the host node.
+	// /etc/containerd/certs.d is mounted so that the fork containerlab binary can resolve
+	// insecure (plain-HTTP) registries via hosts.toml on the host node.
 	if isContainerd {
 		mountPropBidirectional := k8scorev1.MountPropagationBidirectional
-		volumeMounts = append(volumeMounts, k8scorev1.VolumeMount{
-			Name:             "netns",
-			MountPath:        "/run/netns",
-			MountPropagation: &mountPropBidirectional,
-		})
+		volumeMounts = append(volumeMounts,
+			k8scorev1.VolumeMount{
+				Name:             "netns",
+				MountPath:        "/run/netns",
+				MountPropagation: &mountPropBidirectional,
+			},
+			k8scorev1.VolumeMount{
+				Name:      "containerd-certs",
+				MountPath: "/etc/containerd/certs.d",
+				ReadOnly:  true,
+			},
+			k8scorev1.VolumeMount{
+				Name:      "containerd-data",
+				MountPath: "/var/lib/containerd",
+			},
+			k8scorev1.VolumeMount{
+				Name:      "clabernetes-labdir",
+				MountPath: "/var/lib/clabernetes",
+			},
+		)
 	}
 
 	container := k8scorev1.Container{
@@ -957,6 +1027,21 @@ func (r *DeploymentReconciler) renderDeploymentContainerEnv( //nolint: funlen
 			Name:  clabernetesconstants.LauncherContainerRuntimeEnv,
 			Value: containerRuntime,
 		},
+	}
+
+	extraArgs := owningTopology.Spec.Deployment.ContainerlabExtraArgs
+	if len(extraArgs) == 0 {
+		extraArgs = r.configManagerGetter().GetContainerlabExtraArgs()
+	}
+
+	if len(extraArgs) > 0 {
+		envs = append(
+			envs,
+			k8scorev1.EnvVar{
+				Name:  clabernetesconstants.LauncherContainerlabExtraArgs,
+				Value: strings.Join(extraArgs, " "),
+			},
+		)
 	}
 
 	if ResolveGlobalVsTopologyBool(
