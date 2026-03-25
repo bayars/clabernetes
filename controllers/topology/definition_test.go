@@ -400,6 +400,50 @@ func TestDefinitionProcess(t *testing.T) {
 			},
 			removeTopologyPrefix: false,
 		},
+		// nokia_sros multi-linecard test (cp:/lc: type format, standalone — no network-mode grouping)
+		{
+			name: "containerlab-nokia-sros-multilinecard",
+			inTopology: &clabernetesapisv1alpha1.Topology{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "process-containerlab-definition-sros-multilinecard-test",
+					Namespace: "clabernetes",
+				},
+				Spec: clabernetesapisv1alpha1.TopologySpec{
+					Definition: clabernetesapisv1alpha1.Definition{
+						Containerlab: `---
+    name: sros-multilinecard
+    topology:
+      kinds:
+        nokia_sros:
+          image: vrnetlab/nokia_sros:24.7.R1
+          license: /opt/nokia/sros/license.txt
+      nodes:
+        sr7-1:
+          kind: nokia_sros
+          type: "cp: cpu=4 ram=6 chassis=sr-7 slot=A card=cpm5 ___lc: cpu=4 ram=4 max_nics=36 chassis=sr-7 slot=1 card=iom4-e mda/1=me12-100gb-qsfp28"
+        peer-srl:
+          kind: nokia_srlinux
+          image: ghcr.io/nokia/srlinux:latest
+      links:
+        - endpoints: ["sr7-1:eth1", "peer-srl:e1-1"]
+`,
+					},
+				},
+			},
+			reconcileData: &clabernetescontrollerstopology.ReconcileData{
+				Kind:           "containerlab",
+				ResolvedHashes: clabernetesapisv1alpha1.ReconcileHashes{},
+				ResolvedConfigs: map[string]*clabernetesutilcontainerlab.Config{
+					"sr7-1":    {},
+					"peer-srl": {},
+				},
+				ResolvedTunnels: map[string][]*clabernetesapisv1alpha1.PointToPointTunnel{
+					"sr7-1":    {},
+					"peer-srl": {},
+				},
+			},
+			removeTopologyPrefix: false,
+		},
 	}
 
 	for _, testCase := range cases {

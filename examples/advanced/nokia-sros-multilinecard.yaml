@@ -1,0 +1,59 @@
+# Nokia SR OS Multi-Linecard (vr-sros) Example
+# This example demonstrates deploying a Nokia SR-7 multi-linecard router with clabernetes
+# using the srl-labs/vrnetlab nokia_sros image.
+#
+# Multi-Linecard Architecture:
+# Unlike nokia_srsim (which uses separate containers per card with network-mode),
+# multi-linecard nokia_sros runs ALL VMs (CP + line cards) inside a SINGLE container.
+# The vrnetlab entrypoint spawns multiple QEMU VMs:
+#   - CP VM on QEMU monitor port 4000
+#   - LC VMs on QEMU monitor ports 4001+
+#
+# The "type" field uses a special cp:/lc: format string to define CP and LC parameters.
+#
+# IMPORTANT:
+# - Requires a vrnetlab nokia_sros image built from https://github.com/srl-labs/vrnetlab
+# - No license needed for initial 30-minute boot testing
+# - Multi-linecard types (sr-7, sr-14s) require significantly more resources
+#   because all VMs run inside the single container
+#
+# See docs/guides/nokia-sros.md for full documentation
+apiVersion: clabernetes.containerlab.dev/v1alpha1
+kind: Topology
+metadata:
+  name: nokia-sros-multilinecard
+spec:
+  # Resource configuration — must be generous for multi-linecard types
+  # All QEMU VMs (CP + LCs) share these resources in one container
+  deployment:
+    resources:
+      sr7-1:
+        requests:
+          memory: "12Gi"
+          cpu: "6"
+        limits:
+          memory: "18Gi"
+          cpu: "10"
+  definition:
+    containerlab: |
+      name: sros-multilinecard
+      topology:
+        kinds:
+          nokia_sros:
+            # Built from https://github.com/srl-labs/vrnetlab with a .qcow2 image
+            image: vrnetlab/nokia_sros:24.7.R1
+            license: /opt/nokia/sros/license.txt
+        nodes:
+          sr7-1:
+            kind: nokia_sros
+            # cp:/lc: format — vrnetlab spawns CP + LC QEMU VMs in one container
+            #   cp: defines control-plane VM parameters
+            #   lc: defines line-card VM parameters (separated by ___ in the type string)
+            type: "cp: cpu=4 ram=6 chassis=sr-7 slot=A card=cpm5 ___lc: cpu=4 ram=4 max_nics=36 chassis=sr-7 slot=1 card=iom4-e mda/1=me12-100gb-qsfp28"
+
+          peer-srl:
+            kind: nokia_srlinux
+            image: ghcr.io/nokia/srlinux:latest
+
+        links:
+          - endpoints: ["sr7-1:eth1", "peer-srl:e1-1"]
