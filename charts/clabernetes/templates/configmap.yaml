@@ -66,4 +66,8 @@ data:
   extraEnv: |-
 {{ .Values.globalConfig.deployment.extraEnv | toYaml | indent 4 }}
   {{- end }}
+  {{- if .Values.globalConfig.deployment.extraContainers }}
+  extraContainers: |-
+{{ .Values.globalConfig.deployment.extraContainers | toYaml | indent 4 }}
+  {{- end }}
 {{- end }}

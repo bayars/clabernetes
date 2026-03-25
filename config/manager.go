@@ -152,6 +152,8 @@ type Manager interface { //nolint: interfacebloat
 	GetLauncherLogLevel() string
 	// GetExtraEnv returns the default extra env vars for setting on launcher containers.
 	GetExtraEnv() []k8scorev1.EnvVar
+	// GetExtraContainers returns the default extra containers for adding to launcher pods.
+	GetExtraContainers() []k8scorev1.Container
 	// GetRemoveTopologyPrefix returns true if the topology prefix should be removed from Topology
 	// resources, otherwise false.
 	GetRemoveTopologyPrefix() bool

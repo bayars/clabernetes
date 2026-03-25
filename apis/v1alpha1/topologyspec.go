@@ -222,6 +222,12 @@ type Deployment struct {
 	// +optional
 	// +listType=atomic
 	ExtraEnv []k8scorev1.EnvVar `json:"extraEnv"`
+	// ExtraContainers is a list of additional containers to add to the launcher pod. These
+	// containers share the pod's network namespace and can access all interfaces (linecards,
+	// CPM, mgmt, etc.). The values here override any configured global config extra containers!
+	// +optional
+	// +listType=atomic
+	ExtraContainers []k8scorev1.Container `json:"extraContainers"`
 }
 
 // Scheduling holds information about how the launcher pod(s) should be configured with respect

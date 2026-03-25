@@ -169,6 +169,13 @@ func (m *manager) GetExtraEnv() []k8scorev1.EnvVar {
 	return m.config.Deployment.ExtraEnv
 }
 
+func (m *manager) GetExtraContainers() []k8scorev1.Container {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	return m.config.Deployment.ExtraContainers
+}
+
 func (m *manager) GetRemoveTopologyPrefix() bool {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
