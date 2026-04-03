@@ -165,6 +165,11 @@ func (r *DeploymentReconciler) Render(
 		clabernetesConfigs,
 	)
 
+	r.renderDeploymentExtraContainers(
+		deployment,
+		owningTopology,
+	)
+
 	r.renderDeploymentContainerResources(
 		deployment,
 		nodeName,
@@ -915,6 +920,25 @@ func (r *DeploymentReconciler) renderDeploymentContainerEnv( //nolint: funlen
 	}
 
 	deployment.Spec.Template.Spec.Containers[0].Env = envs
+}
+
+func (r *DeploymentReconciler) renderDeploymentExtraContainers(
+	deployment *k8sappsv1.Deployment,
+	owningTopology *clabernetesapisv1alpha1.Topology,
+) {
+	if len(owningTopology.Spec.Deployment.ExtraContainers) > 0 {
+		deployment.Spec.Template.Spec.Containers = append(
+			deployment.Spec.Template.Spec.Containers,
+			owningTopology.Spec.Deployment.ExtraContainers...,
+		)
+	} else {
+		globalExtraContainers := r.configManagerGetter().GetExtraContainers()
+
+		deployment.Spec.Template.Spec.Containers = append(
+			deployment.Spec.Template.Spec.Containers,
+			globalExtraContainers...,
+		)
+	}
 }
 
 func (r *DeploymentReconciler) renderDeploymentContainerResources(

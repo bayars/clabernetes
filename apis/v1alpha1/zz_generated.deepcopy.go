@@ -117,6 +117,13 @@ func (in *ConfigDeployment) DeepCopyInto(out *ConfigDeployment) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.ExtraContainers != nil {
+		in, out := &in.ExtraContainers, &out.ExtraContainers
+		*out = make([]v1.Container, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	return
 }
 
@@ -434,6 +441,13 @@ func (in *Deployment) DeepCopyInto(out *Deployment) {
 	if in.ExtraEnv != nil {
 		in, out := &in.ExtraEnv, &out.ExtraEnv
 		*out = make([]v1.EnvVar, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.ExtraContainers != nil {
+		in, out := &in.ExtraContainers, &out.ExtraContainers
+		*out = make([]v1.Container, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

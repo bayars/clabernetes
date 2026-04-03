@@ -103,6 +103,13 @@ type ConfigDeployment struct {
 	// +optional
 	// +listType=atomic
 	ExtraEnv []k8scorev1.EnvVar `json:"extraEnv"`
+	// ExtraContainers is a list of additional containers to add to all launcher pods. These
+	// containers share the pod's network namespace and can access all interfaces (linecards,
+	// CPM, mgmt, etc.). The values here are applied to *all* launchers since this is the
+	// global config.
+	// +optional
+	// +listType=atomic
+	ExtraContainers []k8scorev1.Container `json:"extraContainers"`
 }
 
 // ConfigImagePull holds configurations relevant to how clabernetes launcher pods handle pulling

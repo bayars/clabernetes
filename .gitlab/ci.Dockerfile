@@ -57,7 +57,7 @@ RUN curl -L -o /usr/local/bin/yq \
       "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" && \
     chmod +x /usr/local/bin/yq
 
-# docker cli (for dind builds)
+# docker cli + iptables (needed for kind networking inside dind)
 RUN apt-get update -qq && \
-    apt-get install -y -qq --no-install-recommends docker.io && \
+    apt-get install -y -qq --no-install-recommends docker.io iptables && \
     rm -rf /var/lib/apt/lists/*

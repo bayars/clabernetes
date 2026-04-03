@@ -7,6 +7,10 @@
 # All jobs use a pre-built base image (.gitlab/ci.Dockerfile) that contains
 # Go, lint tools, helm, devspace, goreleaser, kind, kubectl, yq, and docker CLI.
 # Build and push it to your registry, then set CI_BASE_IMAGE accordingly.
+#
+# To build the CI base image:
+#   docker build -t $CI_REGISTRY/$CI_PROJECT_PATH/ci:latest -f .gitlab/ci.Dockerfile .
+#   docker push $CI_REGISTRY/$CI_PROJECT_PATH/ci:latest
 
 stages:
   - lint

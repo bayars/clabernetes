@@ -129,6 +129,10 @@ func (f fakeManager) GetExtraEnv() []k8scorev1.EnvVar {
 	return nil
 }
 
+func (f fakeManager) GetExtraContainers() []k8scorev1.Container {
+	return nil
+}
+
 func (f fakeManager) GetRemoveTopologyPrefix() bool {
 	return false
 }

@@ -168,6 +168,13 @@ globalConfig:
     # configured global config env vars will be ignored if a Topology has an extraEnv config.
     extraEnv: []
 
+    # extraContainers is a list of containers appended to all launcher pods. They share the
+    # pod's network namespace and can access all interfaces (linecards, CPM, mgmt, etc.).
+    # Set globally here -- individual Topology CRs can override with their own
+    # extraContainers if needed. Note that any configured global config extra containers will
+    # be ignored if a Topology has an extraContainers config.
+    extraContainers: []
+
   # name is the global setting that governs a Topology's "naming" field when set to "global".
   # valid options are "prefixed" or "non-prefixed", see the api types for more detail.
   naming: prefixed
@@ -205,6 +212,33 @@ ui:
     # you really almost certainly gotta do something with this if you want the ingress to work :)
     host: ui.clabernetes.containerlab.dev
     tls: []
+
+#
+# monitoring
+#
+# prometheus monitoring configuration for launcher pods
+#
+monitoring:
+  # podMonitor creates a PodMonitor resource for Prometheus Operator to scrape launcher pods.
+  # Useful when sidecars (via extraContainers) expose a /metrics endpoint.
+  podMonitor:
+    enabled: false
+    # namespace to create the PodMonitor in (defaults to release namespace)
+    namespace: ""
+    # labels to add to the PodMonitor resource
+    labels: {}
+    # annotations to add to the PodMonitor resource
+    annotations: {}
+    # port name or number to scrape on the sidecar container
+    port: metrics
+    # path to scrape metrics from
+    path: /metrics
+    # scrape interval
+    interval: 30s
+    # scrape timeout
+    scrapeTimeout: 10s
+    # namespace selector for the pods to monitor (default: all namespaces)
+    namespaceSelector: {}
 
 #
 # clicker

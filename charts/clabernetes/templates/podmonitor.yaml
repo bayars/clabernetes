@@ -1,0 +1,46 @@
+{{- if .Values.monitoring.podMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ .Values.appName }}-launcher
+  namespace: {{ .Values.monitoring.podMonitor.namespace | default .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    revision: "{{ .Release.Revision }}"
+    clabernetes/app: {{ .Values.appName }}
+    clabernetes/name: "{{ .Values.appName }}-launcher-podmonitor"
+    clabernetes/component: monitoring
+    {{- if .Values.globalLabels }}
+{{ .Values.globalLabels | toYaml | indent 4 }}
+    {{- end }}
+    {{- if .Values.monitoring.podMonitor.labels }}
+{{ .Values.monitoring.podMonitor.labels | toYaml | indent 4 }}
+    {{- end }}
+  {{- if or .Values.globalAnnotations .Values.monitoring.podMonitor.annotations }}
+  annotations:
+    {{- if .Values.globalAnnotations }}
+{{ .Values.globalAnnotations | toYaml | indent 4 }}
+    {{- end }}
+    {{- if .Values.monitoring.podMonitor.annotations }}
+{{ .Values.monitoring.podMonitor.annotations | toYaml | indent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      clabernetes/app: clabernetes
+  {{- if .Values.monitoring.podMonitor.namespaceSelector }}
+  namespaceSelector:
+{{ .Values.monitoring.podMonitor.namespaceSelector | toYaml | indent 4 }}
+  {{- else }}
+  namespaceSelector:
+    any: true
+  {{- end }}
+  podMetricsEndpoints:
+    - port: {{ .Values.monitoring.podMonitor.port }}
+      path: {{ .Values.monitoring.podMonitor.path }}
+      interval: {{ .Values.monitoring.podMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.podMonitor.scrapeTimeout }}
+{{- end }}

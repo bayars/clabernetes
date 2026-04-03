@@ -34,6 +34,7 @@ type bootstrapConfig struct {
 	containerlabVersion         string
 	containerlabExtraArgs       []string
 	extraEnv                    []k8scorev1.EnvVar
+	extraContainers             []k8scorev1.Container
 }
 
 func bootstrapFromConfigMap( //nolint:gocyclo,funlen,gocognit
@@ -183,6 +184,14 @@ func bootstrapFromConfigMap( //nolint:gocyclo,funlen,gocognit
 		}
 	}
 
+	extraContainersData, extraContainersOk := inMap["extraContainers"]
+	if extraContainersOk {
+		err := sigsyaml.Unmarshal([]byte(extraContainersData), &bc.extraContainers)
+		if err != nil {
+			outErrors = append(outErrors, err.Error())
+		}
+	}
+
 	var err error
 
 	if len(outErrors) > 0 {
@@ -326,6 +335,10 @@ func mergeFromBootstrapConfigMerge( //nolint:gocyclo
 	if len(config.Spec.Deployment.ExtraEnv) == 0 {
 		config.Spec.Deployment.ExtraEnv = bootstrap.extraEnv
 	}
+
+	if len(config.Spec.Deployment.ExtraContainers) == 0 {
+		config.Spec.Deployment.ExtraContainers = bootstrap.extraContainers
+	}
 }
 
 func mergeFromBootstrapConfigReplace(
@@ -355,6 +368,7 @@ func mergeFromBootstrapConfigReplace(
 			ContainerlabVersion:         bootstrap.containerlabVersion,
 			ContainerlabExtraArgs:       bootstrap.containerlabExtraArgs,
 			ExtraEnv:                    bootstrap.extraEnv,
+			ExtraContainers:             bootstrap.extraContainers,
 		},
 		Naming: bootstrap.naming,
 	}
