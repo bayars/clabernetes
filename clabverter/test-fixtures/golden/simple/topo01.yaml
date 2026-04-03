@@ -46,6 +46,7 @@ spec:
     containerlabDebug: null
     containerlabExtraArgs: null
     containerlabTimeout: ""
+    extraContainers: null
     extraEnv: null
     filesFromConfigMap:
       srl1:
