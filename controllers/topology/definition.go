@@ -6,7 +6,7 @@ import (
 	clabernetesapis "github.com/srl-labs/clabernetes/apis"
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconfig "github.com/srl-labs/clabernetes/config"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 )
 
@@ -51,7 +51,7 @@ func NewDefinitionProcessor(
 	default:
 		return nil, fmt.Errorf(
 			"%w: unknown or unsupported topology definition kind, this is *probably* a bug",
-			claberneteserrors.ErrReconcile,
+			clabernetesclaberrors.ErrReconcile,
 		)
 	}
 }

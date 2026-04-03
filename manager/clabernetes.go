@@ -8,7 +8,7 @@ import (
 
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
 	clabernetesgeneratedclientset "github.com/srl-labs/clabernetes/generated/clientset"
-	claberneteshttp "github.com/srl-labs/clabernetes/http"
+	clabernetesclabhttp "github.com/srl-labs/clabernetes/clabhttp"
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
 	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
@@ -181,7 +181,7 @@ func (c *clabernetes) Exit(exitCode int) {
 	if !c.initializer {
 		// init container would never have started the http server, so we skip shutting it down
 		// of course
-		err := claberneteshttp.GetManager().Stop()
+		err := clabernetesclabhttp.GetManager().Stop()
 		if err != nil {
 			c.logger.Warnf("failed shutting down http manager, err: %s", err)
 		}
@@ -224,8 +224,8 @@ func (c *clabernetes) start() {
 
 	c.logger.Info("starting http manager...")
 
-	claberneteshttp.InitManager(c)
-	claberneteshttp.GetManager().Start()
+	clabernetesclabhttp.InitManager(c)
+	clabernetesclabhttp.GetManager().Start()
 
 	c.logger.Debug("http manager started...")
 

@@ -264,7 +264,7 @@ func detectInClusterDNSSuffix() string {
 		return clabernetesconstants.KubernetesDefaultInClusterDNSSuffix
 	}
 
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		if !strings.HasPrefix(line, "search ") {
 			continue
 		}

@@ -68,10 +68,10 @@ type NodeProbeStatuses struct {
 // +kubebuilder:printcolumn:JSONPath=".status.topologyReady",name=Ready,type=boolean
 type Topology struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec   TopologySpec   `json:"spec,omitempty"`
-	Status TopologyStatus `json:"status,omitempty"`
+	Spec   TopologySpec   `json:"spec,omitzero"`
+	Status TopologyStatus `json:"status,omitzero"`
 }
 
 // TopologySpec is the spec for a Topology resource.
@@ -165,7 +165,7 @@ type TopologyStatus struct {
 // TopologyList is a list of Topology objects.
 type TopologyList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 
 	Items []Topology `json:"items"`
 }

@@ -13,10 +13,10 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +kubebuilder:validation:XValidation:rule=(self.metadata.name == 'clabernetes')
 type Config struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec   ConfigSpec   `json:"spec,omitempty"`
-	Status ConfigStatus `json:"status,omitempty"`
+	Spec   ConfigSpec   `json:"spec,omitzero"`
+	Status ConfigStatus `json:"status,omitzero"`
 }
 
 // ConfigSpec is the spec for a Config resource.
@@ -52,7 +52,7 @@ type ConfigStatus struct{}
 // ConfigList is a list of Config objects.
 type ConfigList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 
 	Items []Config `json:"items"`
 }

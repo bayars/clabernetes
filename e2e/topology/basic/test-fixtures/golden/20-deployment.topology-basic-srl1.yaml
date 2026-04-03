@@ -61,13 +61,13 @@ spec:
             - name: APP_NAME
               value: clabernetes
             - name: MANAGER_NAMESPACE
-              value: clabernetes
+              value: clabernetes-system
             - name: LAUNCHER_CRI_KIND
               value: containerd
             - name: LAUNCHER_IMAGE_PULL_THROUGH_MODE
               value: auto
             - name: LAUNCHER_LOGGER_LEVEL
-              value: debug
+              value: info
             - name: LAUNCHER_TOPOLOGY_NAME
               value: topology-basic
             - name: LAUNCHER_NODE_NAME

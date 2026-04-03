@@ -12,10 +12,10 @@ import (
 // +k8s:openapi-gen=true
 type Connectivity struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec   ConnectivitySpec   `json:"spec,omitempty"`
-	Status ConnectivityStatus `json:"status,omitempty"`
+	Spec   ConnectivitySpec   `json:"spec,omitzero"`
+	Status ConnectivityStatus `json:"status,omitzero"`
 }
 
 // ConnectivitySpec is the spec for a Connectivity resource.
@@ -34,7 +34,7 @@ type ConnectivityStatus struct{}
 // ConnectivityList is a list of Connectivity objects.
 type ConnectivityList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 
 	Items []Connectivity `json:"items"`
 }

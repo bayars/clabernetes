@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	clabernetesmanagertypes "github.com/srl-labs/clabernetes/manager/types"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
 	k8scorev1 "k8s.io/api/core/v1"
@@ -51,7 +51,7 @@ func prepareCertificates(c clabernetesmanagertypes.Clabernetes) error {
 	}
 
 	if secret.Data == nil {
-		return fmt.Errorf("%w: certificate data is nil", claberneteserrors.ErrPrepare)
+		return fmt.Errorf("%w: certificate data is nil", clabernetesclaberrors.ErrPrepare)
 	}
 
 	caData, err := getCertFromSecret("ca", secret)
@@ -98,7 +98,7 @@ func getCertFromSecret(
 	if !crtOk || !tlsOk || !keyOk {
 		return nil, fmt.Errorf(
 			"%w: missing one or more certificate data fields for cert type '%s'",
-			claberneteserrors.ErrPrepare,
+			clabernetesclaberrors.ErrPrepare,
 			certType,
 		)
 	}

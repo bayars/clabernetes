@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 )
 
 // IsURL returns true if the given path string starts with http or https.
@@ -44,7 +44,7 @@ func WriteHTTPContentsFromPath(
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf(
 			"%w: non 200 status attempting to load content at '%s', status code: %d",
-			claberneteserrors.ErrUtil,
+			clabernetesclaberrors.ErrUtil,
 			path,
 			resp.StatusCode,
 		)

@@ -134,7 +134,7 @@ func (c *clabernetes) runContainerlab() error {
 
 	containerlabExtraArgs := os.Getenv(clabernetesconstants.LauncherContainerlabExtraArgs)
 	if containerlabExtraArgs != "" {
-		for _, extraArg := range strings.Split(containerlabExtraArgs, ",") {
+		for extraArg := range strings.SplitSeq(containerlabExtraArgs, ",") {
 			extraArg = strings.TrimSpace(extraArg)
 			if extraArg != "" {
 				args = append(args, extraArg)

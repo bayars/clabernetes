@@ -12,7 +12,7 @@ import (
 	"time"
 
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 )
 
@@ -122,7 +122,7 @@ func startDocker(ctx context.Context, logger io.Writer) error {
 		}
 
 		if attempts > maxDockerLaunchAttempts {
-			return fmt.Errorf("%w: failed starting docker", claberneteserrors.ErrLaunch)
+			return fmt.Errorf("%w: failed starting docker", clabernetesclaberrors.ErrLaunch)
 		}
 
 		startCmd := exec.CommandContext(ctx, "service", "docker", "start")

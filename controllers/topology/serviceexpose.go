@@ -2,6 +2,7 @@ package topology
 
 import (
 	"fmt"
+	"maps"
 	"net"
 	"sort"
 	"strings"
@@ -9,7 +10,7 @@ import (
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconfig "github.com/srl-labs/clabernetes/config"
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
 	clabernetesutilcontainerlab "github.com/srl-labs/clabernetes/util/containerlab"
@@ -71,7 +72,7 @@ func (r *ServiceExposeReconciler) Resolve(
 		if labels == nil {
 			return nil, fmt.Errorf(
 				"%w: labels are nil, but we expect to see topology owner label here",
-				claberneteserrors.ErrInvalidData,
+				clabernetesclaberrors.ErrInvalidData,
 			)
 		}
 
@@ -87,7 +88,7 @@ func (r *ServiceExposeReconciler) Resolve(
 		if !ok || nodeName == "" {
 			return nil, fmt.Errorf(
 				"%w: topology node label is missing or empty",
-				claberneteserrors.ErrInvalidData,
+				clabernetesclaberrors.ErrInvalidData,
 			)
 		}
 
@@ -237,13 +238,9 @@ func (r *ServiceExposeReconciler) renderServiceBase(
 
 	}
 
-	for k, v := range selectorLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, selectorLabels)
 
-	for k, v := range globalLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, globalLabels)
 
 	serviceSpec := k8scorev1.ServiceSpec{
 		Selector: selectorLabels,
