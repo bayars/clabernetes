@@ -74,6 +74,16 @@ func newManager(scheme *apimachineryruntime.Scheme, appName string) (ctrlruntime
 							},
 						},
 					},
+					// snapshot crs -- need explicit ByObject entry so we bypass the
+					// DefaultLabelSelector (snapshots carry the topology owner label, not the
+					// app label used as the default selector)
+					&clabernetesapisv1alpha1.Snapshot{}: {
+						Namespaces: map[string]ctrlruntimecache.Config{
+							ctrlruntimecache.AllNamespaces: {
+								LabelSelector: labels.Everything(),
+							},
+						},
+					},
 				}
 
 				return ctrlruntimecache.New(config, opts)

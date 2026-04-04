@@ -10,11 +10,11 @@
 # For nokia_srsim, containerlab save produces a config.cfg (or similar
 # checkpoint file) that can be used as a startup-config on the next launch.
 #
-# ConfigMap keys after snapshot:
-#   router1/config.cfg       → saved SR-SIM checkpoint config
-#   router1/save-output      → stdout from containerlab save
-#   router2/config.cfg
-#   router2/save-output
+# ConfigMap keys after snapshot (double-underscore separator):
+#   router1__config.cfg       → saved SR-SIM checkpoint config
+#   router1__save-output      → stdout from containerlab save
+#   router2__config.cfg
+#   router2__save-output
 #
 # IMPORTANT:
 # - A valid SR-SIM license is required at /opt/nokia/sros/license.txt
