@@ -1,36 +1,68 @@
-# Topology with custom status probe configuration
-# Demonstrates health checking for different node types
+# Topology with status probe configuration examples
+#
+# Probe types:
+#
+#   containerHealthProbeConfiguration
+#     Checks the Docker HEALTHCHECK status of the node container via docker inspect.
+#     No credentials or port knowledge needed. Only works for images that define a
+#     HEALTHCHECK instruction — vrnetlab-based images (nokia_sros) do this and use it
+#     to verify the QEMU VM and NOS are ready.
+#
+#   execProbeConfiguration
+#     Runs a command inside the node container via docker exec. Passes when the command
+#     exits 0. Works for any native container with a shell or health-check binary.
+#     Best choice for nokia_srlinux (sr_cli) and nokia_srsim.
+#
+#   tcpProbeConfiguration
+#     Opens a TCP connection to the given port on the node container. Passes when the
+#     connection succeeds. Useful as a lightweight fallback when no richer probe is
+#     available.
+#
+#   sshProbeConfiguration
+#     Connects via SSH and passes when authentication succeeds. Requires knowing the
+#     credentials upfront — prefer containerHealth or exec probes where possible.
+#
+# Multiple probe types can be combined; all configured probes must pass for the node
+# to be reported healthy.
+#
 apiVersion: clabernetes.containerlab.dev/v1alpha1
 kind: Topology
 metadata:
   name: with-probes
 spec:
   statusProbes:
-    # Enable status probing
     enabled: true
-    # Exclude nodes that don't support probing
+    # Nodes with no meaningful health signal (e.g. plain linux containers) can be excluded
     excludedNodes:
       - linux-host
-    # Default probe for all nodes
+    # Default probe applied to all nodes not listed in nodeProbeConfigurations.
+    # Here we default to the SRL exec probe since most nodes in this topology are SRL.
     probeConfiguration:
-      # Allow 15 minutes for nodes to boot
-      startupSeconds: 900
-      sshProbeConfiguration:
-        username: admin
-        password: NokiaSrl1!
-        port: 22
-    # Override for specific nodes
+      # SRL boots in ~60-90s; give it 3 minutes to be safe
+      startupSeconds: 180
+      execProbeConfiguration:
+        # sr_cli exits 0 when the management daemon is healthy, non-0 while still booting
+        command: ["sr_cli", "show version"]
     nodeProbeConfigurations:
-      # TCP probe for nodes without SSH
-      router1:
-        tcpProbeConfiguration:
-          port: 830  # NETCONF port
+      # vrnetlab SR-OS: use the Docker HEALTHCHECK baked into the vrnetlab image.
+      # The image's HEALTHCHECK probes the QEMU monitor port internally — no credentials
+      # or port knowledge required.
+      sros1:
+        startupSeconds: 900   # vrnetlab QEMU + NOS boot can take 10-15 minutes
+        containerHealthProbeConfiguration:
+          enabled: true
+      # SR-Sim: native container, no HEALTHCHECK defined in the image.
+      # Check whether the SR-OS management process is running via exec.
+      srsim1:
+        startupSeconds: 600
+        execProbeConfiguration:
+          command: ["pgrep", "-x", "sr_linux_mgmt"]
   definition:
     containerlab: |
       name: probed
       topology:
         nodes:
-          # Standard SRL - uses default SSH probe
+          # SRL nodes — use the default exec probe (sr_cli show version)
           srl1:
             kind: nokia_srlinux
             image: ghcr.io/nokia/srlinux:latest
@@ -38,16 +70,24 @@ spec:
             kind: nokia_srlinux
             image: ghcr.io/nokia/srlinux:latest
 
-          # Custom router - uses TCP probe
-          router1:
-            kind: nokia_srlinux
-            image: ghcr.io/nokia/srlinux:latest
+          # vrnetlab SR-OS — uses containerHealth probe (no credentials needed)
+          sros1:
+            kind: nokia_sros
+            image: vrnetlab/nokia_sros:24.7.R1
+            license: /opt/nokia/sros/license.txt
 
-          # Linux host - excluded from probing
+          # SR-Sim — uses exec probe to check the management process
+          srsim1:
+            kind: nokia_srsim
+            image: nokia_srsim:25.7.R1
+            license: /opt/nokia/sros/license.txt
+
+          # Plain linux container — excluded from probing
           linux-host:
             kind: linux
             image: alpine:latest
 
         links:
           - endpoints: ["srl1:e1-1", "srl2:e1-1"]
-          - endpoints: ["srl2:e1-2", "router1:e1-1"]
+          - endpoints: ["srl2:e1-2", "sros1:eth1"]
+          - endpoints: ["srl1:e1-2", "srsim1:1/1/c1/1"]
