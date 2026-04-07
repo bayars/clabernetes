@@ -3,6 +3,7 @@ package clicker
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/rand"
 	"os"
 	"strings"
@@ -10,7 +11,7 @@ import (
 	"time"
 
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
 	clabernetesutilkubernetes "github.com/srl-labs/clabernetes/util/kubernetes"
@@ -185,7 +186,7 @@ func (c *clabernetes) run() error {
 	}
 
 	if failed {
-		return fmt.Errorf("%w: one or more workers failed", claberneteserrors.ErrJob)
+		return fmt.Errorf("%w: one or more workers failed", clabernetesclaberrors.ErrJob)
 	}
 
 	return nil
@@ -362,9 +363,7 @@ func (c *clabernetes) buildPods(
 			clabernetesconstants.LabelClickerNodeTarget: nodeName,
 		}
 
-		for k, v := range globalLabels {
-			labels[k] = v
-		}
+		maps.Copy(labels, globalLabels)
 
 		pods = append(
 			pods,

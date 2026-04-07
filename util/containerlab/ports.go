@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
 )
 
@@ -57,7 +57,7 @@ func processPortDefinitionFull(re *regexp.Regexp, portDefinition string) (*Typed
 		retErr = fmt.Errorf(
 			"%w: failed converting exposed port to integer, full port string '%s', parsed port "+
 				"'%s'",
-			claberneteserrors.ErrParse,
+			clabernetesclaberrors.ErrParse,
 			portDefinition,
 			paramsMap["exposePort"],
 		)
@@ -68,7 +68,7 @@ func processPortDefinitionFull(re *regexp.Regexp, portDefinition string) (*Typed
 		retErr = fmt.Errorf(
 			"%w: failed converting destination port to integer, full port string '%s', parsed "+
 				"port '%s'",
-			claberneteserrors.ErrParse,
+			clabernetesclaberrors.ErrParse,
 			portDefinition,
 			paramsMap["destinationPort"],
 		)
@@ -114,7 +114,7 @@ func ProcessPortDefinition(portDefinition string) (*TypedPort, error) {
 		retErr = fmt.Errorf(
 			"%w: failed converting destination port to integer, full port string '%s', parsed "+
 				"port '%s'",
-			claberneteserrors.ErrParse,
+			clabernetesclaberrors.ErrParse,
 			portDefinition,
 			portDefinitionSplit[0],
 		)

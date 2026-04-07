@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 )
 
@@ -30,7 +30,7 @@ func NewManager(logger claberneteslogging.Instance, criKind string) (Manager, er
 	default:
 		return nil, fmt.Errorf(
 			"%w: unknown criKind, cannot create image manager",
-			claberneteserrors.ErrLaunch,
+			clabernetesclaberrors.ErrLaunch,
 		)
 	}
 }

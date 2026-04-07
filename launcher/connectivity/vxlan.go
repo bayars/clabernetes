@@ -12,7 +12,7 @@ import (
 
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 )
 
 const (
@@ -103,7 +103,7 @@ func (m *vxlanManager) resolveVXLANService(vxlanRemote string) (string, error) {
 	if len(resolvedVxlanRemotes) != 1 {
 		return "", fmt.Errorf(
 			"%w: did not get exactly one ip resolved for remote vxlan endpoint",
-			claberneteserrors.ErrConnectivity,
+			clabernetesclaberrors.ErrConnectivity,
 		)
 	}
 

@@ -2,11 +2,12 @@ package topology
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
 	clabernetesutilcontainerlab "github.com/srl-labs/clabernetes/util/containerlab"
 	"gopkg.in/yaml.v3"
@@ -195,17 +196,7 @@ func getDefaultPorts() []*clabernetesutilcontainerlab.TypedPort {
 
 func getNextPort(allocatedPorts []int64) int64 {
 	for possiblePort := 60_000; possiblePort < 65_000; possiblePort++ {
-		var possiblePortFound bool
-
-		for _, allocatedPort := range allocatedPorts {
-			if int64(possiblePort) == allocatedPort {
-				possiblePortFound = true
-
-				break
-			}
-		}
-
-		if !possiblePortFound {
+		if !slices.Contains(allocatedPorts, int64(possiblePort)) {
 			return int64(possiblePort)
 		}
 	}
@@ -536,7 +527,7 @@ func parseLinkEndpoints(link *clabernetesutilcontainerlab.LinkDefinition) (*link
 	if len(link.Endpoints) != clabernetesapisv1alpha1.LinkEndpointElementCount {
 		return nil, fmt.Errorf(
 			"%w: endpoint '%q' has wrong syntax, unexpected number of items",
-			claberneteserrors.ErrParse, link.Endpoints,
+			clabernetesclaberrors.ErrParse, link.Endpoints,
 		)
 	}
 
@@ -547,7 +538,7 @@ func parseLinkEndpoints(link *clabernetesutilcontainerlab.LinkDefinition) (*link
 		len(endpointBParts) != clabernetesapisv1alpha1.LinkEndpointElementCount {
 		return nil, fmt.Errorf(
 			"%w: endpoint '%q' has wrong syntax, bad endpoint:interface config",
-			claberneteserrors.ErrParse, link.Endpoints,
+			clabernetesclaberrors.ErrParse, link.Endpoints,
 		)
 	}
 

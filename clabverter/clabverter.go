@@ -34,9 +34,9 @@ const (
 // should not be present in clabverter output.
 type StatuslessTopology struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec clabernetesapisv1alpha1.TopologySpec `json:"spec,omitempty"`
+	Spec clabernetesapisv1alpha1.TopologySpec `json:"spec,omitzero"`
 }
 
 // Clabverter is a struct that holds data/methods for "clabversion" -- that is, the conversion of
@@ -402,7 +402,9 @@ func (c *Clabverter) load() error {
 		)
 	}
 
-	c.destinationNamespace = clabernetesutilkubernetes.EnforceDNSLabelConvention(c.destinationNamespace)
+	c.destinationNamespace = clabernetesutilkubernetes.EnforceDNSLabelConvention(
+		c.destinationNamespace,
+	)
 
 	if len(c.clabConfig.Topology.Nodes) == 0 {
 		c.logger.Info("no nodes in topology file, nothing to do...")

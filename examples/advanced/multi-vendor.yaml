@@ -34,14 +34,14 @@ spec:
 
           pe1:
             kind: juniper_vmx
-            image: vrnetlab/vr-vmx:20.2R1.10
+            image: vrnetlab/juniper_vmx:20.2R1.10
           pe2:
             kind: nokia_sros
-            image: nokia_sros:20.10.R1
+            image: vrnetlab/nokia_sros:24.7.R1
 
           xr1:
             kind: cisco_xrv
-            image: vrnetlab/vr-xrv:6.1.2
+            image: vrnetlab/cisco_xrv:6.1.2
 
         links:
           # SRL to PE connections
