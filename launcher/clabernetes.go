@@ -2,11 +2,14 @@ package launcher
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
+
 	"strings"
 	"time"
 
@@ -253,9 +256,24 @@ func (c *clabernetes) runProbes() {
 
 	sshProbePassword := os.Getenv(clabernetesconstants.LauncherSSHProbePassword)
 
+	var execProbeCommand []string
+
+	if encodedCommand := os.Getenv(clabernetesconstants.LauncherExecProbeCommand); encodedCommand != "" {
+		if err := json.Unmarshal([]byte(encodedCommand), &execProbeCommand); err != nil {
+			c.logger.Warnf("failed parsing exec probe command, exec probe will be skipped: %s", err)
+		}
+	}
+
+	runContainerHealthProbe := strings.EqualFold(
+		os.Getenv(clabernetesconstants.LauncherContainerHealthProbeEnabled),
+		clabernetesconstants.True,
+	)
+
 	var runTCPProbe bool
 
 	var runSSHProbe bool
+
+	var runExecProbe bool
 
 	if tcpProbePort != 0 {
 		c.logger.Debugf("will run tcp status probe to port %d", tcpProbePort)
@@ -273,7 +291,17 @@ func (c *clabernetes) runProbes() {
 		runSSHProbe = true
 	}
 
-	if !runTCPProbe && !runSSHProbe {
+	if len(execProbeCommand) > 0 {
+		c.logger.Debugf("will run exec status probe with command %v", execProbeCommand)
+
+		runExecProbe = true
+	}
+
+	if runContainerHealthProbe {
+		c.logger.Debug("will run container health status probe via docker inspect")
+	}
+
+	if !runTCPProbe && !runSSHProbe && !runExecProbe && !runContainerHealthProbe {
 		c.logger.Debug("no probes configured, skipping status probes...")
 
 		return
@@ -286,7 +314,8 @@ func (c *clabernetes) runProbes() {
 	var nodeAddr string
 
 	for range ticker.C {
-		if nodeAddr == "" {
+		// nodeAddr is only needed for TCP and SSH probes
+		if (runTCPProbe || runSSHProbe) && nodeAddr == "" {
 			var err error
 
 			nodeAddr, err = getContainerAddr(c.ctx, c.nodeContainerID)
@@ -303,6 +332,8 @@ func (c *clabernetes) runProbes() {
 
 		tcpProbeOk := true
 		sshProbeOk := true
+		execProbeOk := true
+		containerHealthProbeOk := true
 
 		if runTCPProbe {
 			dialer := net.Dialer{
@@ -324,9 +355,17 @@ func (c *clabernetes) runProbes() {
 			sshProbeOk = probeSSH(sshProbePort, nodeAddr, sshProbeUsername, sshProbePassword)
 		}
 
+		if runExecProbe {
+			execProbeOk = c.probeExec(execProbeCommand)
+		}
+
+		if runContainerHealthProbe {
+			containerHealthProbeOk = c.probeContainerHealth()
+		}
+
 		var writeErr error
 
-		if tcpProbeOk && sshProbeOk {
+		if tcpProbeOk && sshProbeOk && execProbeOk && containerHealthProbeOk {
 			writeErr = os.WriteFile(
 				clabernetesconstants.NodeStatusFile,
 				[]byte(clabernetesconstants.NodeStatusHealthy),
@@ -351,6 +390,49 @@ func (c *clabernetes) runProbes() {
 			return
 		}
 	}
+}
+
+func (c *clabernetes) probeExec(command []string) bool {
+	args := append([]string{"exec", c.nodeContainerID}, command...) //nolint:gocritic
+
+	execCmd := exec.CommandContext(c.ctx, "docker", args...) //nolint:gosec
+
+	err := execCmd.Run()
+	if err != nil {
+		c.logger.Debugf("exec probe failed: %s", err)
+
+		return false
+	}
+
+	return true
+}
+
+func (c *clabernetes) probeContainerHealth() bool {
+	inspectCmd := exec.CommandContext(
+		c.ctx,
+		"docker",
+		"inspect",
+		"--format",
+		"{{.State.Health.Status}}",
+		c.nodeContainerID,
+	)
+
+	output, err := inspectCmd.Output()
+	if err != nil {
+		c.logger.Debugf("container health probe failed running docker inspect: %s", err)
+
+		return false
+	}
+
+	status := strings.TrimSpace(string(output))
+
+	if status != "healthy" {
+		c.logger.Debugf("container health probe: status is %q (want \"healthy\")", status)
+
+		return false
+	}
+
+	return true
 }
 
 func probeSSH(port int, nodeAddr, username, password string) bool {

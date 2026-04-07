@@ -2246,9 +2246,38 @@ spec:
                     additionalProperties:
                       description: |-
                         ProbeConfiguration holds information about how to probe a (containerlab) node in a Topology. If
-                        both style probes are configured, both will be used and both must succeed in order to report
+                        multiple style probes are configured, all will be used and all must succeed in order to report
                         healthy.
                       properties:
+                        containerHealthProbeConfiguration:
+                          description: |-
+                            ContainerHealthProbeConfiguration defines a container health probe that checks the
+                            Docker HEALTHCHECK status of the node container via docker inspect. Requires no
+                            credentials or port knowledge. Works best for vrnetlab-based images which define a
+                            HEALTHCHECK that internally verifies the QEMU VM and NOS are ready.
+                          properties:
+                            enabled:
+                              default: true
+                              description: Enabled enables the container health probe.
+                              type: boolean
+                          required:
+                          - enabled
+                          type: object
+                        execProbeConfiguration:
+                          description: |-
+                            ExecProbeConfiguration defines an exec probe that runs a command inside the node
+                            container via docker exec. The probe passes when the command exits with code 0.
+                          properties:
+                            command:
+                              description: Command is the command (and arguments) to
+                                execute inside the node container.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - command
+                          type: object
                         sshProbeConfiguration:
                           description: SSHProbeConfiguration defines an SSH probe.
                           properties:
@@ -2299,6 +2328,35 @@ spec:
                     description: ProbeConfiguration is the default probe configuration
                       for the Topology.
                     properties:
+                      containerHealthProbeConfiguration:
+                        description: |-
+                          ContainerHealthProbeConfiguration defines a container health probe that checks the
+                          Docker HEALTHCHECK status of the node container via docker inspect. Requires no
+                          credentials or port knowledge. Works best for vrnetlab-based images which define a
+                          HEALTHCHECK that internally verifies the QEMU VM and NOS are ready.
+                        properties:
+                          enabled:
+                            default: true
+                            description: Enabled enables the container health probe.
+                            type: boolean
+                        required:
+                        - enabled
+                        type: object
+                      execProbeConfiguration:
+                        description: |-
+                          ExecProbeConfiguration defines an exec probe that runs a command inside the node
+                          container via docker exec. The probe passes when the command exits with code 0.
+                        properties:
+                          command:
+                            description: Command is the command (and arguments) to
+                              execute inside the node container.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                        - command
+                        type: object
                       sshProbeConfiguration:
                         description: SSHProbeConfiguration defines an SSH probe.
                         properties:

@@ -271,7 +271,7 @@ type StatusProbes struct {
 }
 
 // ProbeConfiguration holds information about how to probe a (containerlab) node in a Topology. If
-// both style probes are configured, both will be used and both must succeed in order to report
+// multiple style probes are configured, all will be used and all must succeed in order to report
 // healthy.
 type ProbeConfiguration struct {
 	// StartupSeconds is the total amount of seconds to allow for the node to start. This defaults
@@ -289,6 +289,19 @@ type ProbeConfiguration struct {
 	// TCPProbeConfiguration defines a TCP probe.
 	// +optional
 	TCPProbeConfiguration *TCPProbeConfiguration `json:"tcpProbeConfiguration,omitempty"`
+	// ExecProbeConfiguration defines an exec probe -- a command run inside the node container.
+	// This is the most flexible probe type and works with any node that has a shell or binary
+	// available to indicate health. The command is executed via docker exec inside the node
+	// container and the probe is successful if the command exits with code 0.
+	// +optional
+	ExecProbeConfiguration *ExecProbeConfiguration `json:"execProbeConfiguration,omitempty"`
+	// ContainerHealthProbeConfiguration defines a container health probe -- this checks the
+	// Docker-level health status of the node container (i.e. the result of any HEALTHCHECK
+	// instruction defined in the container image). This probe requires no credentials or port
+	// knowledge and works well for vrnetlab-based images which define a HEALTHCHECK that
+	// internally verifies the QEMU VM and NOS are ready.
+	// +optional
+	ContainerHealthProbeConfiguration *ContainerHealthProbeConfiguration `json:"containerHealthProbeConfiguration,omitempty"`
 }
 
 // SSHProbeConfiguration defines a "ssh" probe -- the ssh probe just connects using standard go
@@ -314,6 +327,33 @@ type TCPProbeConfiguration struct {
 	// probe behaves like a k8s style probe though in that it is "successful" whenever a TCP
 	// connection to this port can be opened successfully.
 	Port int `json:"port"`
+}
+
+// ExecProbeConfiguration defines an "exec" probe. The probe is executed by the launcher via
+// docker exec inside the node container and the result is placed into /clabernetes/.nodestatus so
+// the k8s probe can pick it up and reflect the status. The probe is successful if the command
+// exits with code 0. This probe type works universally for any node type that has a shell or
+// health-check binary available inside its container.
+type ExecProbeConfiguration struct {
+	// Command is the command (and arguments) to execute inside the node container. The command is
+	// run via docker exec and must exit with code 0 to indicate a healthy state.
+	// +listType=atomic
+	Command []string `json:"command"`
+}
+
+// ContainerHealthProbeConfiguration defines a "container health" probe. Rather than connecting to
+// the node over the network, this probe inspects the Docker-level health status of the node
+// container from within the launcher pod (equivalent to "docker inspect --format
+// '{{.State.Health.Status}}' <containerID>"). The probe passes when the container reports a
+// "healthy" status. This requires the container image to define a HEALTHCHECK instruction.
+// vrnetlab-based images (e.g. nokia_sros) ship with a HEALTHCHECK that validates the QEMU VM
+// and NOS are ready, making this probe ideal for those node types — no passwords or port
+// knowledge required.
+type ContainerHealthProbeConfiguration struct {
+	// Enabled enables the container health probe. Set to true to use the Docker HEALTHCHECK
+	// status of the node container as the probe signal.
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled"`
 }
 
 // ImagePull holds configurations relevant to how clabernetes launcher pods handle pulling

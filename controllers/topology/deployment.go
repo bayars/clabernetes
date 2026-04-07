@@ -1089,7 +1089,9 @@ func (r *DeploymentReconciler) renderDeploymentContainerStatus(
 	}
 
 	if nodeProbeConfiguration.SSHProbeConfiguration == nil &&
-		nodeProbeConfiguration.TCPProbeConfiguration == nil {
+		nodeProbeConfiguration.TCPProbeConfiguration == nil &&
+		nodeProbeConfiguration.ExecProbeConfiguration == nil &&
+		nodeProbeConfiguration.ContainerHealthProbeConfiguration == nil {
 		r.log.Warnf("node %q has no status probe configurations, skipping...", nodeName)
 
 		return
@@ -1174,6 +1176,36 @@ func (r *DeploymentReconciler) renderDeploymentContainerStatus(
 				},
 			)
 		}
+	}
+
+	if nodeProbeConfiguration.ExecProbeConfiguration != nil {
+		encodedCommand, err := json.Marshal(nodeProbeConfiguration.ExecProbeConfiguration.Command)
+		if err != nil {
+			r.log.Warnf(
+				"failed marshaling exec probe command for node %q, skipping exec probe: %s",
+				nodeName,
+				err,
+			)
+		} else {
+			probeEnvVars = append(
+				probeEnvVars,
+				k8scorev1.EnvVar{
+					Name:  clabernetesconstants.LauncherExecProbeCommand,
+					Value: string(encodedCommand),
+				},
+			)
+		}
+	}
+
+	if nodeProbeConfiguration.ContainerHealthProbeConfiguration != nil &&
+		nodeProbeConfiguration.ContainerHealthProbeConfiguration.Enabled {
+		probeEnvVars = append(
+			probeEnvVars,
+			k8scorev1.EnvVar{
+				Name:  clabernetesconstants.LauncherContainerHealthProbeEnabled,
+				Value: clabernetesconstants.True,
+			},
+		)
 	}
 
 	deployment.Spec.Template.Spec.Containers[0].Env = append(

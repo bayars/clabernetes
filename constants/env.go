@@ -116,6 +116,15 @@ const (
 	// LauncherSSHProbePassword is the env var that holds the password to use in the ssh probe (if
 	// configured).
 	LauncherSSHProbePassword = "LAUNCHER_SSH_PROBE_PASSWORD" //nolint:gosec
+
+	// LauncherExecProbeCommand is the env var that holds the JSON-encoded command ([]string) to
+	// execute inside the node container for the exec probe (if configured).
+	LauncherExecProbeCommand = "LAUNCHER_EXEC_PROBE_COMMAND"
+
+	// LauncherContainerHealthProbeEnabled is the env var that enables the container health probe.
+	// When set to "true" the launcher will check the Docker HEALTHCHECK status of the node
+	// container via docker inspect rather than connecting to it over the network.
+	LauncherContainerHealthProbeEnabled = "LAUNCHER_CONTAINER_HEALTH_PROBE_ENABLED"
 )
 
 const (
