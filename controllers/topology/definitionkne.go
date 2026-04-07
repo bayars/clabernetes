@@ -5,7 +5,7 @@ import (
 
 	knetopologyproto "github.com/openconfig/kne/proto/topo"
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
 	clabernetesutilcontainerlab "github.com/srl-labs/clabernetes/util/containerlab"
 	clabernetesutilkne "github.com/srl-labs/clabernetes/util/kne"
@@ -138,7 +138,7 @@ func (p *kneDefinitionProcessor) processKneDefinition(
 			p.logger.Critical(msg)
 
 			return fmt.Errorf(
-				"%w: %s", claberneteserrors.ErrParse, msg,
+				"%w: %s", clabernetesclaberrors.ErrParse, msg,
 			)
 		}
 
@@ -157,7 +157,7 @@ func (p *kneDefinitionProcessor) processKneDefinition(
 				p.logger.Critical(msg)
 
 				return fmt.Errorf(
-					"%w: %s", claberneteserrors.ErrParse, msg,
+					"%w: %s", clabernetesclaberrors.ErrParse, msg,
 				)
 			}
 		}

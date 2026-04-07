@@ -9,7 +9,7 @@ import (
 
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	claberneteslauncherimage "github.com/srl-labs/clabernetes/launcher/image"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
 	clabernetesutilkubernetes "github.com/srl-labs/clabernetes/util/kubernetes"
@@ -291,7 +291,7 @@ func (c *clabernetes) waitImageRequestCRAccepted(imageRequestCRName string) erro
 
 	return fmt.Errorf(
 		"%w: timed out waiting for image request cr %q to change to accepted state",
-		claberneteserrors.ErrLaunch,
+		clabernetesclaberrors.ErrLaunch,
 		imageRequestCRName,
 	)
 }
@@ -332,7 +332,7 @@ func (c *clabernetes) waitForImage(
 
 	return fmt.Errorf(
 		"%w: timed out waiting for image %q to be present on node",
-		claberneteserrors.ErrLaunch,
+		clabernetesclaberrors.ErrLaunch,
 		c.imageName,
 	)
 }

@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 package connectivity
 
@@ -9,7 +8,7 @@ import (
 
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	clabernetesgeneratedclientset "github.com/srl-labs/clabernetes/generated/clientset"
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 )
@@ -43,7 +42,7 @@ func NewManager(
 	default:
 		return nil, fmt.Errorf(
 			"%w: unknown connectivity kind, cannot create connectivity manager",
-			claberneteserrors.ErrLaunch,
+			clabernetesclaberrors.ErrLaunch,
 		)
 	}
 }

@@ -24,4 +24,3 @@ spec:
         remoteInterface: e1-1
         remoteNode: srl1
         tunnelID: 1
-status: {}

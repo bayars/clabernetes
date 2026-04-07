@@ -2,8 +2,9 @@ package containerlab
 
 import (
 	"fmt"
+	"maps"
 
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 )
 
 // Config defines lab configuration as it is provided in the YAML file.
@@ -286,9 +287,7 @@ func (c *Component) Copy() *Component {
 	var envCopy map[string]string
 	if c.Env != nil {
 		envCopy = make(map[string]string, len(c.Env))
-		for k, v := range c.Env {
-			envCopy[k] = v
-		}
+		maps.Copy(envCopy, c.Env)
 	}
 
 	return &Component{
@@ -321,7 +320,7 @@ func (l *MDAS) UnmarshalYAML(unmarshal func(any) error) error {
 		if e.Type == "" || e.Slot <= 0 {
 			return fmt.Errorf(
 				"%w: invalid mda entry. slot and type are required, got slot %q, type %q",
-				claberneteserrors.ErrInvalidData,
+				clabernetesclaberrors.ErrInvalidData,
 				e.Slot,
 				e.Type,
 			)
@@ -330,7 +329,7 @@ func (l *MDAS) UnmarshalYAML(unmarshal func(any) error) error {
 		if _, exists := slots[e.Slot]; exists {
 			return fmt.Errorf(
 				"%w: invalid mda entry. duplicate slot %d",
-				claberneteserrors.ErrInvalidData,
+				clabernetesclaberrors.ErrInvalidData,
 				e.Slot,
 			)
 		}
@@ -374,7 +373,7 @@ func (l *XIOMS) UnmarshalYAML(unmarshal func(any) error) error {
 		if e.Type == "" || e.Slot <= 0 {
 			return fmt.Errorf(
 				"%w: invalid xiom entry. slot and type are required, got slot %q, type %q",
-				claberneteserrors.ErrInvalidData,
+				clabernetesclaberrors.ErrInvalidData,
 				e.Slot,
 				e.Type,
 			)
@@ -383,7 +382,7 @@ func (l *XIOMS) UnmarshalYAML(unmarshal func(any) error) error {
 		if _, exists := slots[e.Slot]; exists {
 			return fmt.Errorf(
 				"%w: invalid xiom entry. duplicate slot %d",
-				claberneteserrors.ErrInvalidData,
+				clabernetesclaberrors.ErrInvalidData,
 				e.Slot,
 			)
 		}

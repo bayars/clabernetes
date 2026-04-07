@@ -16,10 +16,10 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +kubebuilder:printcolumn:JSONPath=".status.phase",name=Phase,type=string
 type Snapshot struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec   SnapshotSpec   `json:"spec,omitempty"`
-	Status SnapshotStatus `json:"status,omitempty"`
+	Spec   SnapshotSpec   `json:"spec,omitzero"`
+	Status SnapshotStatus `json:"status,omitzero"`
 }
 
 // SnapshotSpec is the spec for a Snapshot resource.
@@ -66,7 +66,7 @@ const (
 // SnapshotList is a list of Snapshot objects.
 type SnapshotList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 
 	Items []Snapshot `json:"items"`
 }

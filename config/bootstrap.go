@@ -7,7 +7,7 @@ import (
 
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	"gopkg.in/yaml.v3"
 	k8scorev1 "k8s.io/api/core/v1"
 	sigsyaml "sigs.k8s.io/yaml"
@@ -195,13 +195,13 @@ func bootstrapFromConfigMap( //nolint:gocyclo,funlen,gocognit
 	var err error
 
 	if len(outErrors) > 0 {
-		errors := ""
+		var b strings.Builder
 
 		for idx, outError := range outErrors {
-			errors += fmt.Sprintf("error %d '%s'", idx, outError)
+			fmt.Fprintf(&b, "error %d '%s'", idx, outError)
 		}
 
-		err = fmt.Errorf("%w: %s", claberneteserrors.ErrParse, errors)
+		err = fmt.Errorf("%w: %s", clabernetesclaberrors.ErrParse, b.String())
 	}
 
 	return bc, err

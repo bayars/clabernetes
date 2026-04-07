@@ -14,4 +14,3 @@ metadata:
       name: topology-basic
 spec:
   pointToPointTunnels: {}
-status: {}

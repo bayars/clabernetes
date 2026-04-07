@@ -1,4 +1,4 @@
-package http
+package clabhttp
 
 import (
 	"context"

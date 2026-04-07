@@ -11,10 +11,10 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +k8s:openapi-gen=true
 type ImageRequest struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec   ImageRequestSpec   `json:"spec,omitempty"`
-	Status ImageRequestStatus `json:"status,omitempty"`
+	Spec   ImageRequestSpec   `json:"spec,omitzero"`
+	Status ImageRequestStatus `json:"status,omitzero"`
 }
 
 // ImageRequestSpec is the spec for a Config resource.
@@ -52,7 +52,7 @@ type ImageRequestStatus struct {
 // ImageRequestList is a list of ImageRequest objects.
 type ImageRequestList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 
 	Items []ImageRequest `json:"items"`
 }

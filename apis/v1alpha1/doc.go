@@ -1,3 +1,5 @@
+// Package v1alpha1 contains the clabernetes API types.
+//
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen=package,register
 // +groupName=clabernetes.containerlab.dev

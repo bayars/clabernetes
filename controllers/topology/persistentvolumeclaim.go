@@ -2,11 +2,12 @@ package topology
 
 import (
 	"fmt"
+	"maps"
 
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconfig "github.com/srl-labs/clabernetes/config"
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
-	claberneteserrors "github.com/srl-labs/clabernetes/errors"
+	clabernetesclaberrors "github.com/srl-labs/clabernetes/claberrors"
 	claberneteslogging "github.com/srl-labs/clabernetes/logging"
 	clabernetesutil "github.com/srl-labs/clabernetes/util"
 	clabernetesutilcontainerlab "github.com/srl-labs/clabernetes/util/containerlab"
@@ -54,7 +55,7 @@ func (r *PersistentVolumeClaimReconciler) Resolve(
 		if labels == nil {
 			return nil, fmt.Errorf(
 				"%w: labels are nil, but we expect to see topology owner label here",
-				claberneteserrors.ErrInvalidData,
+				clabernetesclaberrors.ErrInvalidData,
 			)
 		}
 
@@ -62,7 +63,7 @@ func (r *PersistentVolumeClaimReconciler) Resolve(
 		if !ok || nodeName == "" {
 			return nil, fmt.Errorf(
 				"%w: topology node label is missing or empty",
-				claberneteserrors.ErrInvalidData,
+				clabernetesclaberrors.ErrInvalidData,
 			)
 		}
 
@@ -218,13 +219,9 @@ func (r *PersistentVolumeClaimReconciler) renderPVCBase(
 		clabernetesconstants.LabelTopologyKind: GetTopologyKind(owningTopology),
 	}
 
-	for k, v := range selectorLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, selectorLabels)
 
-	for k, v := range globalLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, globalLabels)
 
 	return &k8scorev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{

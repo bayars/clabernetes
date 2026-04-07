@@ -54,7 +54,9 @@ func resolveConnectivityDestination(
 	// inject config manager getter so we can easily test this (and things upstream)
 	configManagerGetter clabernetesconfig.ManagerGetterFunc,
 ) string {
-	safeNodeName := clabernetesutilkubernetes.EnforceDNSLabelConvention(uninterestingEndpointNodeName)
+	safeNodeName := clabernetesutilkubernetes.EnforceDNSLabelConvention(
+		uninterestingEndpointNodeName,
+	)
 
 	destination := fmt.Sprintf(
 		"%s-%s-vx.%s.%s",

@@ -1,9 +1,11 @@
 package util
 
+import "slices"
+
 // StringSliceDifference returns the difference between a and b string slices. Items that exist in
 // slice "b" but are missing in slice "a" will be returned.
 func StringSliceDifference(a, b []string) []string {
-	aSet := map[string]interface{}{}
+	aSet := map[string]any{}
 
 	for _, s := range a {
 		aSet[s] = nil
@@ -24,27 +26,13 @@ func StringSliceDifference(a, b []string) []string {
 // StringSliceContainsAll returns true if all values in vals are in string slice ss, otherwise
 // false.
 func StringSliceContainsAll(ss, vals []string) bool {
-	containsAll := true
-
 	for _, v := range vals {
-		var found bool
-
-		for _, s := range ss {
-			if s == v {
-				found = true
-
-				break
-			}
-		}
-
-		if !found {
-			containsAll = false
-
-			break
+		if !slices.Contains(ss, v) {
+			return false
 		}
 	}
 
-	return containsAll
+	return true
 }
 
 // StringSliceEqual returns true if the string slices provided are equal, otherwise false.
