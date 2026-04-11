@@ -5,11 +5,11 @@
 # connects via NETCONF and writes the running configuration to:
 #   /clabernetes/clab-clabernetes-<nodeName>/<nodeName>/config.txt
 #
-# ConfigMap keys after snapshot:
-#   sros1/config.txt    → full running config saved via NETCONF
-#   sros1/save-output   → stdout from containerlab save
-#   sros2/config.txt
-#   sros2/save-output
+# ConfigMap keys after snapshot (double-underscore separator):
+#   sros1__config.txt    → full running config saved via NETCONF
+#   sros1__save-output   → stdout from containerlab save
+#   sros2__config.txt
+#   sros2__save-output
 #
 # Trigger snapshot:
 #   kubectl annotate topology two-sros clabernetes/snapshotRequested=true

@@ -726,7 +726,12 @@ func (c *Clabverter) handleFromSnapshot() error {
 		for _, key := range fileKeys {
 			// Determine the mount path: for startup-config files, use the standard path
 			// For other files, derive from the key name
-			fileName := key[strings.LastIndex(key, "/")+1:]
+			// keys use "__" as the node/file separator (e.g. "srl1__config.json")
+			keyParts := strings.SplitN(key, "__", splitInTwo)
+			fileName := key
+			if len(keyParts) == splitInTwo {
+				fileName = keyParts[1]
+			}
 
 			// skip save-output files, they are informational only
 			if fileName == "save-output" {
@@ -768,12 +773,12 @@ func (c *Clabverter) handleFromSnapshot() error {
 }
 
 // groupConfigMapKeysByNode groups ConfigMap data keys by node name.
-// Keys are expected to be in format "<nodeName>/<fileName>".
+// Keys are expected to be in format "<nodeName>__<fileName>".
 func groupConfigMapKeysByNode(configMap *k8scorev1.ConfigMap) map[string][]string {
 	nodeFiles := make(map[string][]string)
 
 	for key := range configMap.Data {
-		parts := strings.SplitN(key, "/", splitInTwo)
+		parts := strings.SplitN(key, "__", splitInTwo)
 		if len(parts) != splitInTwo {
 			continue
 		}

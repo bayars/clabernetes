@@ -99,42 +99,42 @@ func TestSnapshotConfigMapFormat(t *testing.T) {
 			// SR Linux saves a checkpoint-0.json (or startup.json) per node.
 			name: "srlinux-two-nodes",
 			cmData: map[string]string{
-				"srl1/checkpoint-0.json": `{"config": {}}`,
-				"srl1/save-output":       "Saving config for srl1\n",
-				"srl2/checkpoint-0.json": `{"config": {}}`,
-				"srl2/save-output":       "Saving config for srl2\n",
+				"srl1__checkpoint-0.json": `{"config": {}}`,
+				"srl1__save-output":       "Saving config for srl1\n",
+				"srl2__checkpoint-0.json": `{"config": {}}`,
+				"srl2__save-output":       "Saving config for srl2\n",
 			},
 			expectedNodes: map[string][]string{
-				"srl1": {"srl1/checkpoint-0.json"},
-				"srl2": {"srl2/checkpoint-0.json"},
+				"srl1": {"srl1__checkpoint-0.json"},
+				"srl2": {"srl2__checkpoint-0.json"},
 			},
 		},
 		{
 			// SR OS (vrnetlab) saves a config.txt per node.
 			name: "sros-two-nodes",
 			cmData: map[string]string{
-				"sros1/config.txt":  "/configure system name sros1\n",
-				"sros1/save-output": "Saved via NETCONF\n",
-				"sros2/config.txt":  "/configure system name sros2\n",
-				"sros2/save-output": "Saved via NETCONF\n",
+				"sros1__config.txt":  "/configure system name sros1\n",
+				"sros1__save-output": "Saved via NETCONF\n",
+				"sros2__config.txt":  "/configure system name sros2\n",
+				"sros2__save-output": "Saved via NETCONF\n",
 			},
 			expectedNodes: map[string][]string{
-				"sros1": {"sros1/config.txt"},
-				"sros2": {"sros2/config.txt"},
+				"sros1": {"sros1__config.txt"},
+				"sros2": {"sros2__config.txt"},
 			},
 		},
 		{
 			// SR-SIM saves a config.cfg per node.
 			name: "srsim-two-nodes",
 			cmData: map[string]string{
-				"router1/config.cfg": "# SROS config\n",
-				"router1/save-output": "Checkpoint saved\n",
-				"router2/config.cfg": "# SROS config\n",
-				"router2/save-output": "Checkpoint saved\n",
+				"router1__config.cfg": "# SROS config\n",
+				"router1__save-output": "Checkpoint saved\n",
+				"router2__config.cfg": "# SROS config\n",
+				"router2__save-output": "Checkpoint saved\n",
 			},
 			expectedNodes: map[string][]string{
-				"router1": {"router1/config.cfg"},
-				"router2": {"router2/config.cfg"},
+				"router1": {"router1__config.cfg"},
+				"router2": {"router2__config.cfg"},
 			},
 		},
 	}
@@ -198,7 +198,7 @@ func TestSnapshotConfigMapFormat(t *testing.T) {
 				}
 
 				// save-output key must also be present
-				saveOutputKey := nodeName + "/save-output"
+				saveOutputKey := nodeName + "__save-output"
 				if _, ok := fetchedCM.Data[saveOutputKey]; !ok {
 					t.Errorf(
 						"node %q: expected save-output key %q not found",

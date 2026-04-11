@@ -9,6 +9,7 @@ import (
 
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
+	clabernetesutilkubernetes "github.com/srl-labs/clabernetes/util/kubernetes"
 	k8scorev1 "k8s.io/api/core/v1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -166,7 +167,8 @@ func (c *Controller) collectNodeSnapshots(
 		}
 
 		nodeFileKeys := c.saveAndCollectNodeFiles(
-			ctx, topologyNamespace, targetPod.Name, nodeName, configMapData,
+			ctx, topologyNamespace, targetPod.Name, nodeName,
+			clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName), configMapData,
 		)
 
 		nodeConfigs[nodeName] = nodeFileKeys
@@ -219,14 +221,14 @@ func (c *Controller) findRunningPod(
 
 func (c *Controller) saveAndCollectNodeFiles(
 	ctx context.Context,
-	namespace, podName, nodeName string,
+	namespace, podName, nodeName, containerName string,
 	configMapData map[string]string,
 ) []string {
 	saveOutput, saveErr := c.execInPod(
 		ctx,
 		namespace,
 		podName,
-		nodeName,
+		containerName,
 		[]string{
 			"sh",
 			"-c",
@@ -237,13 +239,13 @@ func (c *Controller) saveAndCollectNodeFiles(
 		c.BaseController.Log.Warnf("containerlab save failed for node %q: %s", nodeName, saveErr)
 	}
 
-	configMapData[fmt.Sprintf("%s/save-output", nodeName)] = saveOutput
+	configMapData[fmt.Sprintf("%s__save-output", nodeName)] = saveOutput
 
 	savedFilesOutput, listErr := c.execInPod(
 		ctx,
 		namespace,
 		podName,
-		nodeName,
+		containerName,
 		[]string{
 			"sh",
 			"-c",
@@ -275,7 +277,7 @@ func (c *Controller) saveAndCollectNodeFiles(
 		}
 
 		fileContent, readErr := c.execInPod(
-			ctx, namespace, podName, nodeName, []string{"cat", filePath},
+			ctx, namespace, podName, containerName, []string{"cat", filePath},
 		)
 		if readErr != nil {
 			c.BaseController.Log.Warnf(
@@ -289,7 +291,7 @@ func (c *Controller) saveAndCollectNodeFiles(
 		}
 
 		fileName := filePath[strings.LastIndex(filePath, "/")+1:]
-		key := fmt.Sprintf("%s/%s", nodeName, fileName)
+		key := fmt.Sprintf("%s__%s", nodeName, fileName)
 		configMapData[key] = fileContent
 		nodeFileKeys = append(nodeFileKeys, key)
 	}

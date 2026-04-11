@@ -10,6 +10,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // and it stores the running configurations of all nodes in a backing ConfigMap.
 // +k8s:openapi-gen=true
 // +kubebuilder:resource:path="snapshots"
+// +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:JSONPath=".spec.topologyRef",name=Topology,type=string
 // +kubebuilder:printcolumn:JSONPath=".metadata.creationTimestamp",name=Age,type=date
 // +kubebuilder:printcolumn:JSONPath=".status.configMapRef",name=ConfigMap,type=string

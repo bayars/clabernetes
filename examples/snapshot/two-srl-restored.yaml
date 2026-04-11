@@ -6,16 +6,17 @@
 # filesFromConfigMap.
 #
 # The ConfigMap key format produced by the snapshot controller is:
-#   <nodeName>/<filename>
+#   <nodeName>__<filename>        (double-underscore separator)
 #
-# For SR Linux, containerlab save writes:
-#   /clabernetes/clab-clabernetes-<nodeName>/<nodeName>/checkpoint-0.json
-#
-# So the ConfigMap will contain keys such as:
-#   srl1/checkpoint-0.json   → saved SR Linux checkpoint
-#   srl1/save-output         → stdout from "containerlab save" (informational)
-#   srl2/checkpoint-0.json
-#   srl2/save-output
+# For SR Linux, containerlab save writes config.json and checkpoint-0.json to:
+#   /clabernetes/clab-clabernetes-<nodeName>/<nodeName>/config/
+# The snapshot collects all files and stores them with keys such as:
+#   srl1__checkpoint-0.json   → saved SR Linux checkpoint
+#   srl1__config.json         → saved SR Linux running config
+#   srl1__save-output         → stdout from "containerlab save" (informational)
+#   srl2__checkpoint-0.json
+#   srl2__config.json
+#   srl2__save-output
 #
 # Replace <snapshot-name> below with the actual Snapshot/ConfigMap name, e.g.:
 #   two-srl-20260215-103000
@@ -27,14 +28,14 @@ spec:
   deployment:
     filesFromConfigMap:
       srl1:
-        - filePath: /clabernetes/clab-clabernetes-srl1/srl1/checkpoint-0.json
+        - filePath: /clabernetes/clab-clabernetes-srl1/srl1/config/checkpoint-0.json
           configMapName: <snapshot-name>
-          configMapPath: srl1/checkpoint-0.json
+          configMapPath: srl1__checkpoint-0.json
           mode: read
       srl2:
-        - filePath: /clabernetes/clab-clabernetes-srl2/srl2/checkpoint-0.json
+        - filePath: /clabernetes/clab-clabernetes-srl2/srl2/config/checkpoint-0.json
           configMapName: <snapshot-name>
-          configMapPath: srl2/checkpoint-0.json
+          configMapPath: srl2__checkpoint-0.json
           mode: read
   definition:
     containerlab: |
@@ -44,10 +45,10 @@ spec:
           srl1:
             kind: nokia_srlinux
             image: ghcr.io/nokia/srlinux:latest
-            startup-config: /clabernetes/clab-clabernetes-srl1/srl1/checkpoint-0.json
+            startup-config: /clabernetes/clab-clabernetes-srl1/srl1/config/checkpoint-0.json
           srl2:
             kind: nokia_srlinux
             image: ghcr.io/nokia/srlinux:latest
-            startup-config: /clabernetes/clab-clabernetes-srl2/srl2/checkpoint-0.json
+            startup-config: /clabernetes/clab-clabernetes-srl2/srl2/config/checkpoint-0.json
         links:
           - endpoints: ["srl1:e1-1", "srl2:e1-1"]
