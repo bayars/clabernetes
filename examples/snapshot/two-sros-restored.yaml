@@ -15,7 +15,7 @@
 #   two-sros-20260215-103000
 #
 # You can also auto-generate this manifest with:
-#   clabverter --topology two-sros.clab.yaml --from-snapshot two-sros-20260215-103000
+#   clabverter --topologyFile two-sros.clab.yaml --fromSnapshot two-sros-20260215-103000
 apiVersion: clabernetes.containerlab.dev/v1alpha1
 kind: Topology
 metadata:

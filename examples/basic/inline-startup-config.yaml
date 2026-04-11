@@ -6,7 +6,7 @@
 # ConfigMaps without attempting to read from the filesystem.
 #
 # Usage with clabverter:
-#   clabverter --topology clab.yaml --output ./manifests
+#   clabverter --topologyFile clab.yaml --outputDirectory manifests
 ---
 apiVersion: clabernetes.containerlab.dev/v1alpha1
 kind: Topology

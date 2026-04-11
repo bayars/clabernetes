@@ -13,6 +13,10 @@ func LoadContainerlabConfig(rawConfig string) (*Config, error) {
 		return nil, err
 	}
 
+	if config.Topology == nil {
+		config.Topology = &Topology{}
+	}
+
 	if config.Topology.Defaults == nil {
 		// defaults was nil, thats ok, but we'll just instantiate an empty definition so we don't
 		// have to check that its nil before checking for stuff inside it being nil/empty too

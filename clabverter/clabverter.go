@@ -383,6 +383,10 @@ func (c *Clabverter) load() error {
 
 	c.rawClabConfig = string(rawClabConfigBytes)
 
+	// If the file is a Kubernetes Topology manifest (kind: Topology), extract the embedded
+	// containerlab definition from spec.definition.containerlab.
+	c.rawClabConfig = maybeExtractClabFromK8sManifest(c.logger, c.rawClabConfig)
+
 	// parse the topo file
 	c.clabConfig, err = clabernetesutilcontainerlab.LoadContainerlabConfig(c.rawClabConfig)
 	if err != nil {
@@ -415,6 +419,33 @@ func (c *Clabverter) load() error {
 	c.logger.Debug("loading and validating containerlab topology file complete!")
 
 	return nil
+}
+
+// maybeExtractClabFromK8sManifest checks whether raw is a Kubernetes Topology manifest
+// (kind: Topology, apiVersion: clabernetes.*). If so it extracts the containerlab definition
+// from spec.definition.containerlab and returns it; otherwise it returns raw unchanged.
+func maybeExtractClabFromK8sManifest(logger claberneteslogging.Instance, raw string) string {
+	// Quick check before doing a full unmarshal.
+	if !strings.Contains(raw, "kind: Topology") {
+		return raw
+	}
+
+	var manifest StatuslessTopology
+
+	if err := sigsyaml.Unmarshal([]byte(raw), &manifest); err != nil {
+		return raw
+	}
+
+	clabDef := manifest.Spec.Definition.Containerlab
+	if clabDef == "" {
+		return raw
+	}
+
+	logger.Info(
+		"detected Kubernetes Topology manifest — extracting embedded containerlab definition",
+	)
+
+	return clabDef
 }
 
 // handleNamespace renders the namespace manifest.
@@ -669,10 +700,12 @@ func (c *Clabverter) handleFromSnapshot() error {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	configOverrides := &clientcmd.ConfigOverrides{}
 
-	kubeConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		loadingRules,
 		configOverrides,
-	).ClientConfig()
+	)
+
+	kubeConfig, err := clientConfig.ClientConfig()
 	if err != nil {
 		return fmt.Errorf("failed building kubeconfig for snapshot lookup: %w", err)
 	}
@@ -682,9 +715,11 @@ func (c *Clabverter) handleFromSnapshot() error {
 		return fmt.Errorf("failed creating kubernetes client for snapshot lookup: %w", err)
 	}
 
-	// Determine the namespace to look up the ConfigMap in
-	namespace := c.destinationNamespace
-	if namespace == "" {
+	// Determine the namespace to look up the ConfigMap in.
+	// Use the kubeconfig context namespace (i.e. where the user's kubectl is pointed) so that
+	// the lookup works regardless of what clabverter computed as the destination namespace.
+	namespace, _, err := clientConfig.Namespace()
+	if err != nil || namespace == "" {
 		namespace = "default"
 	}
 

@@ -29,7 +29,20 @@
 #   srl2__save-output
 #
 # --- Restore from snapshot (see two-srl-restored.yaml, or auto-generate) ---
-# clabverter --topology two-srl.clab.yaml --from-snapshot "$SNAP" --output restored/
+# --- Restore from snapshot (add filesFromConfigMap manually or use clabverter) ---
+# The ConfigMap key format produced by the snapshot controller is:
+#   <nodeName>__<filename>        (double-underscore separator)
+#
+# For SR Linux the resulting ConfigMap keys include (among others):
+#   srl1__checkpoint-0.json   → saved SR Linux checkpoint
+#   srl1__config.json         → saved SR Linux running config
+#   srl1__save-output         → stdout from "containerlab save" (informational)
+#   srl2__checkpoint-0.json
+#   srl2__config.json
+#   srl2__save-output
+#
+# --- Restore from snapshot (see two-srl-restored.yaml, or auto-generate) ---
+# clabverter --topologyFile two-srl-with-configs.yaml --fromSnapshot "$SNAP" --outputDirectory restored/
 apiVersion: clabernetes.containerlab.dev/v1alpha1
 kind: Topology
 metadata:
