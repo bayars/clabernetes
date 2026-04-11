@@ -43,11 +43,6 @@ spec:
         links:
           - endpoints: ["srl1:e1-1", "srl2:e1-1"]
   deployment:
-    containerlabDebug: null
-    containerlabExtraArgs: null
-    containerlabTimeout: ""
-    extraContainers: null
-    extraEnv: null
     filesFromConfigMap:
       srl1:
       - configMapName: topo01-srl1-startup-config
@@ -85,13 +80,9 @@ spec:
         configMapPath: REPLACED
         filePath: srl2.license
         mode: read
-    filesFromURL: null
     persistence:
       enabled: false
-    privilegedLauncher: null
-    resources: null
-    scheduling:
-      tolerations: null
+    scheduling: {}
   expose:
     disableAutoExpose: false
     disableExpose: false
@@ -103,7 +94,5 @@ spec:
   naming: prefixed
   statusProbes:
     enabled: false
-    excludedNodes: null
-    nodeProbeConfigurations: null
     probeConfiguration:
       startupSeconds: 0

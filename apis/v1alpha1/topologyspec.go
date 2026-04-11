@@ -142,7 +142,7 @@ type Deployment struct {
 	// kind/type that is *not* in this resources map will have the "default" resources from this
 	// mapping applied.
 	// +optional
-	Resources map[string]k8scorev1.ResourceRequirements `json:"resources"`
+	Resources map[string]k8scorev1.ResourceRequirements `json:"resources,omitempty"`
 	// Scheduling holds information about how the launcher pod(s) should be configured with respect
 	// to "scheduling" things (affinity/node selector/tolerations).
 	// +optional
@@ -158,18 +158,18 @@ type Deployment struct {
 	// your mileage may vary. In short: if you don't care about having some privileged pods, just
 	// leave this alone.
 	// +optional
-	PrivilegedLauncher *bool `json:"privilegedLauncher"`
+	PrivilegedLauncher *bool `json:"privilegedLauncher,omitempty"`
 	// FilesFromConfigMap is a slice of FileFromConfigMap that define the configmap/path and node
 	// and path on a launcher node that the file should be mounted to. If the path is not provided
 	// the configmap is mounted in its entirety (like normal k8s things), so you *probably* want
 	// to specify the sub path unless you are sure what you're doing!
 	// +optional
-	FilesFromConfigMap map[string][]FileFromConfigMap `json:"filesFromConfigMap"`
+	FilesFromConfigMap map[string][]FileFromConfigMap `json:"filesFromConfigMap,omitempty"`
 	// FilesFromURL is a mapping of FileFromURL that define a URL at which to fetch a file, and path
 	// on a launcher node that the file should be downloaded to. This is useful for configs that are
 	// larger than the ConfigMap (etcd) 1Mb size limit.
 	// +optional
-	FilesFromURL map[string][]FileFromURL `json:"filesFromURL"`
+	FilesFromURL map[string][]FileFromURL `json:"filesFromURL,omitempty"`
 	// Persistence holds configurations relating to persisting each nodes working containerlab
 	// directory.
 	// +optional
@@ -178,11 +178,11 @@ type Deployment struct {
 	// This is disabled by default. If this value is unset, the global config value (default of
 	// "false") will be used.
 	// +optional
-	ContainerlabDebug *bool `json:"containerlabDebug"`
+	ContainerlabDebug *bool `json:"containerlabDebug,omitempty"`
 	// ContainerlabTimeout sets the `--timeout` flag when invoking containerlab in the launcher
 	// pods.
 	// +optional
-	ContainerlabTimeout string `json:"containerlabTimeout"`
+	ContainerlabTimeout string `json:"containerlabTimeout,omitempty"`
 	// ContainerlabVersion sets a custom version to use for containerlab -- when set this will cause
 	// the launcher pods to download and use this specific version of containerlab. Setting a bad
 	// version (version that doesnt exist/typo/etc.) will cause pods to fail to launch, so be
@@ -198,7 +198,7 @@ type Deployment struct {
 	// to skip post-deploy actions. If this value is unset, the global config value will be used.
 	// +optional
 	// +listType=atomic
-	ContainerlabExtraArgs []string `json:"containerlabExtraArgs"`
+	ContainerlabExtraArgs []string `json:"containerlabExtraArgs,omitempty"`
 	// LauncherImage sets the default launcher image to use when spawning launcher deployments for
 	// this Topology. This is optional, the launcher image will default to whatever is set in the
 	// global config CR.
@@ -221,13 +221,13 @@ type Deployment struct {
 	// values here override any configured global config extra envs!
 	// +optional
 	// +listType=atomic
-	ExtraEnv []k8scorev1.EnvVar `json:"extraEnv"`
+	ExtraEnv []k8scorev1.EnvVar `json:"extraEnv,omitempty"`
 	// ExtraContainers is a list of additional containers to add to the launcher pod. These
 	// containers share the pod's network namespace and can access all interfaces (linecards,
 	// CPM, mgmt, etc.). The values here override any configured global config extra containers!
 	// +optional
 	// +listType=atomic
-	ExtraContainers []k8scorev1.Container `json:"extraContainers"`
+	ExtraContainers []k8scorev1.Container `json:"extraContainers,omitempty"`
 }
 
 // Scheduling holds information about how the launcher pod(s) should be configured with respect
@@ -240,7 +240,7 @@ type Scheduling struct {
 	// Tolerations is a list of Tolerations that will be set on the launcher pod spec.
 	// +listType=atomic
 	// +optional
-	Tolerations []k8scorev1.Toleration `json:"tolerations"`
+	Tolerations []k8scorev1.Toleration `json:"tolerations,omitempty"`
 }
 
 // StatusProbes holds details about if the status probes are enabled and if so how they should be
@@ -259,12 +259,12 @@ type StatusProbes struct {
 	// the nodes in the containerlab sub-topology.
 	// +listType=atomic
 	// +optional
-	ExcludedNodes []string `json:"excludedNodes"`
+	ExcludedNodes []string `json:"excludedNodes,omitempty"`
 	// NodeProbeConfigurations is a map of node specific probe configurations -- if you only need
 	// a simple ssh or tcp connect style setup that works on all node types in the topology you can
 	// ignore this and just configure ProbeConfiguration.
 	// +optional
-	NodeProbeConfigurations map[string]ProbeConfiguration `json:"nodeProbeConfigurations"`
+	NodeProbeConfigurations map[string]ProbeConfiguration `json:"nodeProbeConfigurations,omitempty"`
 	// ProbeConfiguration is the default probe configuration for the Topology.
 	// +optional
 	ProbeConfiguration ProbeConfiguration `json:"probeConfiguration"`
@@ -362,7 +362,7 @@ type ImagePull struct {
 	// InsecureRegistries is a slice of strings of insecure registries to configure in the launcher
 	// pods.
 	// +optional
-	InsecureRegistries InsecureRegistries `json:"insecureRegistries"`
+	InsecureRegistries InsecureRegistries `json:"insecureRegistries,omitempty"`
 	// PullThroughOverride allows for overriding the image pull through mode for this
 	// particular topology.
 	// +kubebuilder:validation:Enum=auto;always;never
@@ -378,7 +378,7 @@ type ImagePull struct {
 	// is in.
 	// +listType=set
 	// +optional
-	PullSecrets []string `json:"pullSecrets"`
+	PullSecrets []string `json:"pullSecrets,omitempty"`
 	// DockerDaemonConfig allows for setting the docker daemon config for all launchers in this
 	// topology. The secret *must be present in the namespace of this topology*. The secret *must*
 	// contain a key "daemon.json" -- as this secret will be mounted to /etc/docker and docker will
