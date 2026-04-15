@@ -8,7 +8,7 @@ import (
 func (m *manager) resourcesForContainerlabKind(
 	containerlabKind, containerlabType string,
 ) *k8scorev1.ResourceRequirements {
-	m.logger.Infof(
+	m.logger.Debugf(
 		"looking up resources for containerlab kind %q, type %q",
 		containerlabKind,
 		containerlabType,
