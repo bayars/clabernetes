@@ -1,0 +1,44 @@
+name: topo01
+topology:
+    defaults:
+        ports: []
+    kinds:
+        nokia_sros:
+            license: srl2.license
+            ports: []
+    nodes:
+        srl1:
+            kind: srl
+            startup-config: srl1/srl1.cfg
+            image: ghcr.io/nokia/srlinux
+            license: taco/srl1.license
+            ports: []
+        srl2:
+            kind: srl
+            startup-config: srl2/srl2.cfg
+            image: ghcr.io/nokia/srlinux
+            license: srl2.license
+            binds:
+                - __clabDir__/potato.txt:/potato.txt
+                - __clabNodeDir__/potato.txt:/nodedir-potato.txt
+            ports: []
+        sros1:
+            kind: nokia_sros
+            image: nokia_sros:latest
+            license: taco/srl1.license
+            ports: []
+        sros2:
+            kind: nokia_sros
+            image: nokia_sros:latest
+            ports: []
+            healthcheck:
+                test:
+                    - CMD-SHELL
+                    - cat /etc/os-release
+                start-period: 5
+                interval: 1
+    links:
+        - endpoints:
+            - srl1:e1-1
+            - srl2:e1-1
+debug: false
