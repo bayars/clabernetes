@@ -28,9 +28,10 @@ func Entrypoint() *cli.App {
 	cli.VersionPrinter = ShowVersion
 
 	return &cli.App{
-		Name:    clabernetesconstants.Clabverter,
-		Version: clabernetesconstants.Version,
-		Usage:   "run clabernetes clabverter -- clab to clabernetes manifest(s) converter",
+		Name:     clabernetesconstants.Clabverter,
+		Version:  clabernetesconstants.Version,
+		Usage:    "run clabernetes clabverter -- clab to clabernetes manifest(s) converter",
+		Commands: []*cli.Command{reverseCommand()},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name: topologyFile,
