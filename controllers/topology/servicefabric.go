@@ -184,6 +184,10 @@ func (r *ServiceFabricReconciler) renderServiceBase(
 
 	maps.Copy(labels, globalLabels)
 
+	if nodeName != safeNodeName {
+		annotations[clabernetesconstants.AnnotationOriginalNodeName] = nodeName
+	}
+
 	return &k8scorev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,

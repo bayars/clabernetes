@@ -253,6 +253,10 @@ func (r *ServiceExposeReconciler) renderServiceBase(
 		serviceSpec.ClusterIP = k8scorev1.ClusterIPNone
 	}
 
+	if nodeName != safeNodeName {
+		annotations[clabernetesconstants.AnnotationOriginalNodeName] = nodeName
+	}
+
 	return &k8scorev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
