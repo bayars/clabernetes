@@ -977,6 +977,13 @@ func (in *SnapshotStatus) DeepCopyInto(out *SnapshotStatus) {
 			(*out)[key] = outVal
 		}
 	}
+	if in.FailedNodes != nil {
+		in, out := &in.FailedNodes, &out.FailedNodes
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	return
 }
 

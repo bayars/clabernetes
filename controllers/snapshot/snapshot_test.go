@@ -40,6 +40,7 @@ func TestSnapshotPhaseSkipping(t *testing.T) {
 		phase string
 	}{
 		{name: "skip-completed", phase: clabernetesapisv1alpha1.SnapshotPhaseCompleted},
+		{name: "skip-partially-successful", phase: clabernetesapisv1alpha1.SnapshotPhasePartiallySuccessful},
 		{name: "skip-failed", phase: clabernetesapisv1alpha1.SnapshotPhaseFailed},
 	}
 
@@ -245,6 +246,121 @@ func TestSnapshotSavePathFormat(t *testing.T) {
 				t.Errorf("path mismatch: %q != %q", expected, tc.expectedBase)
 			}
 		})
+	}
+}
+
+// TestSnapshotPhaseFromFailedNodes validates the phase-determination logic used in
+// finalizeSnapshot: all success → Completed, partial → PartiallySuccessful, all fail → Failed.
+func TestSnapshotPhaseFromFailedNodes(t *testing.T) {
+	cases := []struct {
+		name          string
+		nodeConfigs   map[string][]string
+		failedNodes   map[string]string
+		expectedPhase string
+	}{
+		{
+			name: "all-success",
+			nodeConfigs: map[string][]string{
+				"r1": {"r1__config.txt"},
+				"r2": {"r2__config.txt"},
+			},
+			failedNodes:   map[string]string{},
+			expectedPhase: clabernetesapisv1alpha1.SnapshotPhaseCompleted,
+		},
+		{
+			name: "partial-failure",
+			nodeConfigs: map[string][]string{
+				"r1": {"r1__config.txt"},
+			},
+			failedNodes: map[string]string{
+				"r2": "no running pod found",
+			},
+			expectedPhase: clabernetesapisv1alpha1.SnapshotPhasePartiallySuccessful,
+		},
+		{
+			name:        "all-failure",
+			nodeConfigs: map[string][]string{},
+			failedNodes: map[string]string{
+				"r1": "no running pod found",
+				"r2": "no running pod found",
+			},
+			expectedPhase: clabernetesapisv1alpha1.SnapshotPhaseFailed,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var phase string
+
+			switch {
+			case len(tc.failedNodes) == 0:
+				phase = clabernetesapisv1alpha1.SnapshotPhaseCompleted
+			case len(tc.nodeConfigs) > 0:
+				phase = clabernetesapisv1alpha1.SnapshotPhasePartiallySuccessful
+			default:
+				phase = clabernetesapisv1alpha1.SnapshotPhaseFailed
+			}
+
+			if phase != tc.expectedPhase {
+				t.Errorf("expected phase %q, got %q", tc.expectedPhase, phase)
+			}
+		})
+	}
+}
+
+// TestSnapshotFailedNodesInStatus verifies that FailedNodes is recorded in the Snapshot status.
+func TestSnapshotFailedNodesInStatus(t *testing.T) {
+	scheme := newTestScheme(t)
+
+	snap := &clabernetesapisv1alpha1.Snapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-snap",
+			Namespace: "default",
+		},
+		Spec: clabernetesapisv1alpha1.SnapshotSpec{
+			TopologyRef: "my-lab",
+		},
+		Status: clabernetesapisv1alpha1.SnapshotStatus{
+			Phase: clabernetesapisv1alpha1.SnapshotPhasePartiallySuccessful,
+			FailedNodes: map[string]string{
+				"r2": "no running pod found",
+			},
+			NodeConfigs: map[string][]string{
+				"r1": {"r1__config.txt"},
+			},
+			ConfigMapRef: "test-snap",
+		},
+	}
+
+	fakeClient := ctrlruntimefake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(snap).
+		WithStatusSubresource(snap).
+		Build()
+
+	fetched := &clabernetesapisv1alpha1.Snapshot{}
+
+	err := fakeClient.Get(
+		context.Background(),
+		apimachinerytypes.NamespacedName{Namespace: "default", Name: "test-snap"},
+		fetched,
+	)
+	if err != nil {
+		t.Fatalf("failed fetching snapshot: %s", err)
+	}
+
+	if fetched.Status.Phase != clabernetesapisv1alpha1.SnapshotPhasePartiallySuccessful {
+		t.Errorf("expected PartiallySuccessful phase, got %q", fetched.Status.Phase)
+	}
+
+	if reason, ok := fetched.Status.FailedNodes["r2"]; !ok {
+		t.Error("expected r2 in FailedNodes")
+	} else if reason != "no running pod found" {
+		t.Errorf("unexpected reason for r2: %q", reason)
+	}
+
+	if _, ok := fetched.Status.NodeConfigs["r1"]; !ok {
+		t.Error("expected r1 in NodeConfigs")
 	}
 }
 
