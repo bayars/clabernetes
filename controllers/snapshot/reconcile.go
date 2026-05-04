@@ -47,8 +47,9 @@ func (c *Controller) Reconcile(
 		return ctrlruntime.Result{}, nil
 	}
 
-	// Skip already-terminal snapshots
+	// Skip already-terminal snapshots.
 	if snapshot.Status.Phase == clabernetesapisv1alpha1.SnapshotPhaseCompleted ||
+		snapshot.Status.Phase == clabernetesapisv1alpha1.SnapshotPhasePartiallySuccessful ||
 		snapshot.Status.Phase == clabernetesapisv1alpha1.SnapshotPhaseFailed {
 		c.BaseController.LogReconcileCompleteSuccess(req)
 
@@ -88,11 +89,11 @@ func (c *Controller) reconcileSnapshot(
 		return c.failSnapshot(ctx, snapshot, "topology has no nodes in NodeReadiness status")
 	}
 
-	configMapData, nodeConfigs := c.collectNodeSnapshots(
+	configMapData, nodeConfigs, failedNodes := c.collectNodeSnapshots(
 		ctx, snapshot, topologyNamespace, nodeNames,
 	)
 
-	return c.finalizeSnapshot(ctx, snapshot, topology, configMapData, nodeConfigs)
+	return c.finalizeSnapshot(ctx, snapshot, topology, configMapData, nodeConfigs, failedNodes)
 }
 
 func (c *Controller) setSnapshotRunning(
@@ -150,9 +151,10 @@ func (c *Controller) collectNodeSnapshots(
 	snapshot *clabernetesapisv1alpha1.Snapshot,
 	topologyNamespace string,
 	nodeNames []string,
-) (configMapData map[string]string, nodeConfigs map[string][]string) {
+) (configMapData map[string]string, nodeConfigs map[string][]string, failedNodes map[string]string) {
 	configMapData = make(map[string]string)
 	nodeConfigs = make(map[string][]string)
+	failedNodes = make(map[string]string)
 
 	for _, nodeName := range nodeNames {
 		c.BaseController.Log.Infof(
@@ -163,18 +165,25 @@ func (c *Controller) collectNodeSnapshots(
 
 		targetPod := c.findRunningPod(ctx, topologyNamespace, snapshot.Spec.TopologyRef, nodeName)
 		if targetPod == nil {
+			failedNodes[nodeName] = "no running pod found"
+
 			continue
 		}
 
-		nodeFileKeys := c.saveAndCollectNodeFiles(
+		nodeFileKeys, nodeErr := c.saveAndCollectNodeFiles(
 			ctx, topologyNamespace, targetPod.Name, nodeName,
 			clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName), configMapData,
 		)
+		if nodeErr != nil {
+			failedNodes[nodeName] = nodeErr.Error()
+		}
 
-		nodeConfigs[nodeName] = nodeFileKeys
+		if len(nodeFileKeys) > 0 {
+			nodeConfigs[nodeName] = nodeFileKeys
+		}
 	}
 
-	return configMapData, nodeConfigs
+	return configMapData, nodeConfigs, failedNodes
 }
 
 func (c *Controller) findRunningPod(
@@ -223,7 +232,7 @@ func (c *Controller) saveAndCollectNodeFiles(
 	ctx context.Context,
 	namespace, podName, nodeName, containerName string,
 	configMapData map[string]string,
-) []string {
+) ([]string, error) {
 	saveOutput, saveErr := c.execInPod(
 		ctx,
 		namespace,
@@ -239,6 +248,7 @@ func (c *Controller) saveAndCollectNodeFiles(
 		c.BaseController.Log.Warnf("containerlab save failed for node %q: %s", nodeName, saveErr)
 	}
 
+	// Always store save output — even on error it contains useful diagnostic info.
 	configMapData[fmt.Sprintf("%s__save-output", nodeName)] = saveOutput
 
 	savedFilesOutput, listErr := c.execInPod(
@@ -263,7 +273,11 @@ func (c *Controller) saveAndCollectNodeFiles(
 			listErr,
 		)
 
-		return nil
+		if saveErr != nil {
+			return nil, fmt.Errorf("containerlab save: %w; find config files: %w", saveErr, listErr)
+		}
+
+		return nil, listErr
 	}
 
 	savedFiles := strings.Split(strings.TrimSpace(savedFilesOutput), "\n")
@@ -296,7 +310,12 @@ func (c *Controller) saveAndCollectNodeFiles(
 		nodeFileKeys = append(nodeFileKeys, key)
 	}
 
-	return nodeFileKeys
+	// If save failed and no pre-existing config files were found, report the save error.
+	if len(nodeFileKeys) == 0 && saveErr != nil {
+		return nil, fmt.Errorf("containerlab save failed and no config files found: %w", saveErr)
+	}
+
+	return nodeFileKeys, nil
 }
 
 func (c *Controller) finalizeSnapshot(
@@ -305,6 +324,7 @@ func (c *Controller) finalizeSnapshot(
 	topology *clabernetesapisv1alpha1.Topology,
 	configMapData map[string]string,
 	nodeConfigs map[string][]string,
+	failedNodes map[string]string,
 ) (ctrlruntime.Result, error) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
@@ -332,25 +352,61 @@ func (c *Controller) finalizeSnapshot(
 	}
 
 	err = c.BaseController.Client.Create(ctx, configMap)
-	if err != nil && !apimachineryerrors.IsAlreadyExists(err) {
-		return c.failSnapshot(
+	if err != nil {
+		if !apimachineryerrors.IsAlreadyExists(err) {
+			return c.failSnapshot(
+				ctx,
+				snapshot,
+				fmt.Sprintf("failed creating ConfigMap %q: %s", snapshot.Name, err),
+			)
+		}
+
+		// ConfigMap already exists — update its data so we don't lose collected configs.
+		patchBytes := buildConfigMapDataPatch(configMapData)
+
+		patchErr := c.BaseController.Client.Patch(
 			ctx,
-			snapshot,
-			fmt.Sprintf("failed creating ConfigMap %q: %s", snapshot.Name, err),
+			configMap,
+			ctrlruntimeclient.RawPatch(apimachinerytypes.MergePatchType, patchBytes),
 		)
+		if patchErr != nil {
+			c.BaseController.Log.Warnf(
+				"failed patching existing ConfigMap %q: %s",
+				snapshot.Name,
+				patchErr,
+			)
+		}
 	}
 
-	snapshot.Status.Phase = clabernetesapisv1alpha1.SnapshotPhaseCompleted
+	// Determine phase based on per-node outcomes.
+	var phase string
+
+	switch {
+	case len(failedNodes) == 0:
+		phase = clabernetesapisv1alpha1.SnapshotPhaseCompleted
+	case len(nodeConfigs) > 0:
+		phase = clabernetesapisv1alpha1.SnapshotPhasePartiallySuccessful
+	default:
+		phase = clabernetesapisv1alpha1.SnapshotPhaseFailed
+	}
+
+	snapshot.Status.Phase = phase
 	snapshot.Status.ConfigMapRef = snapshot.Name
 	snapshot.Status.Timestamp = timestamp
 	snapshot.Status.NodeConfigs = nodeConfigs
 
+	if len(failedNodes) > 0 {
+		snapshot.Status.FailedNodes = failedNodes
+		snapshot.Status.Message = buildFailedNodesMessage(failedNodes, len(nodeConfigs))
+	}
+
 	err = c.BaseController.Client.Status().Update(ctx, snapshot)
 	if err != nil {
 		c.BaseController.Log.Warnf(
-			"failed updating snapshot '%s/%s' status to Completed, error: %s",
+			"failed updating snapshot '%s/%s' status to %s, error: %s",
 			snapshot.Namespace,
 			snapshot.Name,
+			phase,
 			err,
 		)
 
@@ -360,6 +416,48 @@ func (c *Controller) finalizeSnapshot(
 	c.patchTopologySnapshotAnnotations(ctx, topology, snapshot.Name, timestamp)
 
 	return ctrlruntime.Result{}, nil
+}
+
+// buildFailedNodesMessage returns a human-readable summary of node failures.
+func buildFailedNodesMessage(failedNodes map[string]string, successCount int) string {
+	parts := make([]string, 0, len(failedNodes))
+	for node, reason := range failedNodes {
+		parts = append(parts, fmt.Sprintf("%s (%s)", node, reason))
+	}
+
+	return fmt.Sprintf(
+		"%d/%d nodes failed: %s",
+		len(failedNodes),
+		len(failedNodes)+successCount,
+		strings.Join(parts, ", "),
+	)
+}
+
+// buildConfigMapDataPatch constructs a merge-patch payload that sets the data field.
+func buildConfigMapDataPatch(data map[string]string) []byte {
+	if len(data) == 0 {
+		return []byte(`{"data":{}}`)
+	}
+
+	var sb strings.Builder
+
+	sb.WriteString(`{"data":{`)
+
+	first := true
+
+	for k, v := range data {
+		if !first {
+			sb.WriteByte(',')
+		}
+
+		sb.WriteString(fmt.Sprintf("%q:%q", k, v))
+
+		first = false
+	}
+
+	sb.WriteString(`}}`)
+
+	return []byte(sb.String())
 }
 
 func (c *Controller) patchTopologySnapshotAnnotations(

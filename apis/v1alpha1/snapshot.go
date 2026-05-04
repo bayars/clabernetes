@@ -43,7 +43,10 @@ type SnapshotStatus struct {
 	// NodeConfigs maps node name to list of saved file paths stored in the ConfigMap.
 	// +optional
 	NodeConfigs map[string][]string `json:"nodeConfigs,omitempty"`
-	// Phase is the current lifecycle phase: Pending, Running, Completed, Failed.
+	// FailedNodes maps node name to the failure reason for nodes that could not be snapshotted.
+	// +optional
+	FailedNodes map[string]string `json:"failedNodes,omitempty"`
+	// Phase is the current lifecycle phase: Pending, Running, Completed, PartiallySuccessful, Failed.
 	// +optional
 	Phase string `json:"phase,omitempty"`
 	// Message holds any error or informational message.
@@ -56,8 +59,11 @@ const (
 	SnapshotPhasePending = "Pending"
 	// SnapshotPhaseRunning indicates the snapshot is in progress.
 	SnapshotPhaseRunning = "Running"
-	// SnapshotPhaseCompleted indicates the snapshot completed successfully.
+	// SnapshotPhaseCompleted indicates all nodes were snapshotted successfully.
 	SnapshotPhaseCompleted = "Completed"
+	// SnapshotPhasePartiallySuccessful indicates some nodes were snapshotted successfully
+	// and others failed. Check FailedNodes for details.
+	SnapshotPhasePartiallySuccessful = "PartiallySuccessful"
 	// SnapshotPhaseFailed indicates the snapshot failed.
 	SnapshotPhaseFailed = "Failed"
 )
