@@ -59,13 +59,34 @@ func SafeConcatNameMax(name []string, maxLen int) string {
 }
 
 // EnforceDNSLabelConvention attempts to enforce the RFC 1123 label name requirements on s.
+// If any characters had to be replaced (not counting case folding), a 7-character SHA256 hash of
+// the lowercased original is appended so that distinct names like "safa-test1" and "safa_test1"
+// never map to the same DNS / Kubernetes name.
 func EnforceDNSLabelConvention(s string) string {
 	p := getDNSLabelConventionPatterns()
 
-	s = strings.ToLower(s)
-	s = p.invalidChars.ReplaceAllString(s, "-")
-	s = p.startsWithNonAlpha.ReplaceAllString(s, "z")
-	s = p.endsWithNonAlpha.ReplaceAllString(s, "z")
+	lowered := strings.ToLower(s)
 
-	return s
+	sanitized := p.invalidChars.ReplaceAllString(lowered, "-")
+	sanitized = p.startsWithNonAlpha.ReplaceAllString(sanitized, "z")
+	sanitized = p.endsWithNonAlpha.ReplaceAllString(sanitized, "z")
+
+	// If lowercasing alone was sufficient (no invalid chars replaced or boundary-fixed),
+	// return as-is — no hash needed, name is already unambiguous.
+	if lowered == sanitized {
+		return sanitized
+	}
+
+	// Characters were substituted: append a short hash of the lowercased original so two
+	// different names that sanitize to the same base string remain distinguishable.
+	digest := sha256.Sum256([]byte(lowered))
+
+	hashSuffix := "-" + hex.EncodeToString(digest[:])[0:7]
+
+	maxBase := NameMaxLen - len(hashSuffix)
+	if len(sanitized) > maxBase {
+		sanitized = sanitized[0:maxBase]
+	}
+
+	return sanitized + hashSuffix
 }

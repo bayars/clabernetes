@@ -114,7 +114,7 @@ func TestEnforceDNSLabelConvention(t *testing.T) {
 		{
 			name:     "ending-with-hyphen",
 			in:       "afinename-",
-			expected: "afinenamez",
+			expected: "afinenamez-14a1713",
 		},
 		{
 			name:     "starting-with-digit",
@@ -124,7 +124,7 @@ func TestEnforceDNSLabelConvention(t *testing.T) {
 		{
 			name:     "underscores",
 			in:       "advanced_bgp_srsim",
-			expected: "advanced-bgp-srsim",
+			expected: "advanced-bgp-srsim-ae73657",
 		},
 		{
 			name:     "uppercase",
@@ -134,12 +134,24 @@ func TestEnforceDNSLabelConvention(t *testing.T) {
 		{
 			name:     "special-chars",
 			in:       "afine.name",
-			expected: "afine-name",
+			expected: "afine-name-6df0d13",
 		},
 		{
 			name:     "special-chars-with-digit-boundaries",
 			in:       "1afine.name2",
-			expected: "1afine-name2",
+			expected: "1afine-name2-7601b99",
+		},
+		{
+			// "safa-test1" has no invalid chars → no hash; "safa_test1" has underscore → hash.
+			// They must not produce the same output.
+			name:     "dash-vs-underscore-no-collision",
+			in:       "safa-test1",
+			expected: "safa-test1",
+		},
+		{
+			name:     "dash-vs-underscore-underscore-variant",
+			in:       "safa_test1",
+			expected: "safa-test1-b0930a8",
 		},
 	}
 

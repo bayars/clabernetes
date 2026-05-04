@@ -371,6 +371,10 @@ func (r *DeploymentReconciler) renderDeploymentBase(
 
 	maps.Copy(labels, globalLabels)
 
+	if clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName) != strings.ToLower(nodeName) {
+		annotations[clabernetesconstants.AnnotationOriginalNodeName] = nodeName
+	}
+
 	return &k8sappsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,

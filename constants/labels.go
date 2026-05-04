@@ -82,3 +82,12 @@ const (
 	// AnnotationSnapshotLatest holds the name of the most recent Snapshot CR for this topology.
 	AnnotationSnapshotLatest = "clabernetes/snapshotLatest"
 )
+
+const (
+	// AnnotationOriginalNodeName holds the original containerlab node name on any Kubernetes
+	// resource whose name was sanitized by EnforceDNSLabelConvention. When the clab name contains
+	// characters invalid in DNS labels (e.g. underscores), the k8s resource name gains a hash
+	// suffix to stay unique; this annotation lets operators and tools (e.g. GCP Cloud DNS sync)
+	// recover the original name without any reverse-mapping logic.
+	AnnotationOriginalNodeName = "clabernetes/originalNodeName"
+)
