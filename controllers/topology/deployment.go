@@ -1102,7 +1102,12 @@ func (r *DeploymentReconciler) renderDeploymentContainerStatus(
 	failureThresholds := probeDefaultStartupFailureThreshold
 
 	if nodeProbeConfiguration.StartupSeconds != 0 {
-		failureThresholds = nodeProbeConfiguration.StartupSeconds / probePeriodSeconds
+		// Add 3 extra periods (3×20s = 60s) as buffer: the launcher needs time after the
+		// container starts to set up Docker, pull images, and run containerlab before
+		// runProbes() begins, and there is up to 50s of detection lag between the container
+		// reporting healthy and the k8s startup probe seeing it (30s probe ticker + 20s k8s
+		// check interval). Without this buffer, startupSeconds would silently under-count.
+		failureThresholds = nodeProbeConfiguration.StartupSeconds/probePeriodSeconds + 3
 	}
 
 	// startup probe delays the start of the readiness probe -- this gives us time for the nos to

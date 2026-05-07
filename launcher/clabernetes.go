@@ -234,9 +234,36 @@ func (c *clabernetes) launch() {
 		)
 	}
 
-	c.nodeContainerID, err = getContainerIDForNodeName(c.ctx, c.nodeName)
-	if err != nil {
-		c.logger.Fatalf("failed determining node %q container id, err: %s", c.nodeName, err)
+	// Retry the container ID lookup briefly — the container may still be transitioning from
+	// "Created" to "Running" right after containerlab exits, causing docker ps to return empty.
+	for range 5 {
+		c.nodeContainerID, err = getContainerIDForNodeName(c.ctx, c.nodeName)
+		if err != nil {
+			c.logger.Fatalf("failed determining node %q container id, err: %s", c.nodeName, err)
+		}
+
+		if c.nodeContainerID != "" {
+			break
+		}
+
+		c.logger.Debugf(
+			"container id for node %q not yet available, retrying in 5s...",
+			c.nodeName,
+		)
+
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
+	}
+
+	if c.nodeContainerID == "" {
+		c.logger.Fatalf(
+			"failed determining node %q container id: no running container found matching name %q",
+			c.nodeName,
+			c.nodeName,
+		)
 	}
 
 	c.logger.Debug("containerlab launched successfully")
