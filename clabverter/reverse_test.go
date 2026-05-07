@@ -118,6 +118,7 @@ func TestUnclabvert(t *testing.T) {
 				inputDir,
 				actualDir,
 				testCase.fromSnapshotFile,
+				"", // namespace — empty uses kubeconfig context (irrelevant for file-based snapshot)
 				false,
 				true,
 			)
