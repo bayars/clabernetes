@@ -9,13 +9,13 @@ topology:
     nodes:
         srl1:
             kind: srl
-            startup-config: srl1/checkpoint-0.json
+            startup-config: srl1/srl1.cfg
             image: ghcr.io/nokia/srlinux
             license: taco/srl1.license
             ports: []
         srl2:
             kind: srl
-            startup-config: srl2/running-config.cfg
+            startup-config: srl2/srl2.cfg
             image: ghcr.io/nokia/srlinux
             license: srl2.license
             binds:

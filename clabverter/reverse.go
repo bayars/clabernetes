@@ -3,6 +3,7 @@ package clabverter
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -23,6 +24,13 @@ import (
 )
 
 const snapshotKeySeparator = "__"
+
+// topologyGVR is the GroupVersionResource for the Topology CRD.
+var topologyGVR = schema.GroupVersionResource{ //nolint:gochecknoglobals
+	Group:    clabernetesapis.Group,
+	Version:  "v1alpha1",
+	Resource: "topologies",
+}
 
 // Unclabverter holds data and methods for the reverse conversion: from a clabverter output
 // directory (or snapshot ConfigMap) back to a containerlab topology YAML and device config files
@@ -99,7 +107,7 @@ func (u *Unclabverter) Unclabvert() error {
 		return fmt.Errorf("failed creating output directory: %w", err)
 	}
 
-	// Load Topology CR and ConfigMaps from input directory (if provided).
+	// Load Topology CR and ConfigMaps from the input directory (if provided).
 	var topologyCR *StatuslessTopology
 
 	configMaps := map[string]k8scorev1.ConfigMap{}
@@ -111,19 +119,32 @@ func (u *Unclabverter) Unclabvert() error {
 		}
 	}
 
-	// Determine config source: snapshot (file or K8s) or output-directory ConfigMaps.
 	if u.fromSnapshot != "" {
-		snapshotCM, fetchedTopoCR, fetchErr := u.loadSnapshot()
+		// loadSnapshot returns the snapshot CM, an optional Topology CR fetched from K8s, and any
+		// additional ConfigMaps fetched from K8s (e.g. extra-files CMs for licenses).
+		snapshotCM, fetchedTopoCR, k8sExtraCMs, fetchErr := u.loadSnapshot()
 		if fetchErr != nil {
 			return fetchErr
 		}
 
-		// Prefer a Topology CR fetched from K8s over one found in the input directory.
+		// K8s-fetched Topology CR takes priority over one found in the local input directory.
 		if fetchedTopoCR != nil {
 			topologyCR = fetchedTopoCR
 		}
 
-		return u.unclabvertFromSnapshot(topologyCR, snapshotCM)
+		// Merge K8s extra CMs into the map (they may contain licenses and other files).
+		maps.Copy(configMaps, k8sExtraCMs)
+
+		// Always add the snapshot CM to the map so unclabvertFromOutputDir can look it up.
+		configMaps[snapshotCM.Name] = *snapshotCM
+
+		if topologyCR != nil {
+			// Topology CR is available: use the precise filesFromConfigMap entries.
+			return u.unclabvertFromOutputDir(topologyCR, configMaps)
+		}
+
+		// No Topology CR: fall back to extracting the first config file per node.
+		return u.unclabvertSnapshotFallback(snapshotCM)
 	}
 
 	if topologyCR == nil {
@@ -138,17 +159,21 @@ func (u *Unclabverter) Unclabvert() error {
 	return u.unclabvertFromOutputDir(topologyCR, configMaps)
 }
 
-// loadSnapshot returns the snapshot ConfigMap and, when fetched from Kubernetes, the associated
-// Topology CR (nil when reading from a local file). If fromSnapshot resolves to an existing local
-// file it is read directly; otherwise the ConfigMap is fetched from the Kubernetes cluster and the
-// Topology CR is fetched using the clabernetes/topologyOwner label on the ConfigMap.
-func (u *Unclabverter) loadSnapshot() (*k8scorev1.ConfigMap, *StatuslessTopology, error) {
+// loadSnapshot returns the snapshot ConfigMap, an optional Topology CR (non-nil only when fetched
+// from Kubernetes), and any extra ConfigMaps fetched from the cluster. When fromSnapshot resolves
+// to an existing local file it is read directly and the latter two are nil/empty.
+func (u *Unclabverter) loadSnapshot() (
+	*k8scorev1.ConfigMap,
+	*StatuslessTopology,
+	map[string]k8scorev1.ConfigMap,
+	error,
+) {
 	if _, statErr := os.Stat(u.fromSnapshot); statErr == nil {
 		u.logger.Debugf("loading snapshot from local file: %s", u.fromSnapshot)
 
 		cm, err := u.loadSnapshotFromFile()
 
-		return cm, nil, err
+		return cm, nil, nil, err
 	}
 
 	u.logger.Debugf(
@@ -171,21 +196,21 @@ func (u *Unclabverter) loadSnapshotFromFile() (*k8scorev1.ConfigMap, error) {
 		return nil, fmt.Errorf("failed parsing snapshot ConfigMap from %q: %w", u.fromSnapshot, err)
 	}
 
-	return &cm, nil //nolint:nilerr
+	return &cm, nil
 }
 
-// topologyGVR is the GroupVersionResource for the Topology CRD.
-var topologyGVR = schema.GroupVersionResource{ //nolint:gochecknoglobals
-	Group:    clabernetesapis.Group,
-	Version:  "v1alpha1",
-	Resource: "topologies",
-}
-
-// fetchSnapshotFromKubernetes fetches the snapshot ConfigMap by name from the Kubernetes cluster
-// and also attempts to fetch the associated Topology CR using the clabernetes/topologyOwner label.
-// The namespace is taken from the --namespace flag; if empty, the kubeconfig context namespace is
-// used (falling back to "default").
-func (u *Unclabverter) fetchSnapshotFromKubernetes() (*k8scorev1.ConfigMap, *StatuslessTopology, error) {
+// fetchSnapshotFromKubernetes fetches the snapshot ConfigMap from the cluster, then attempts to
+// fetch the associated Topology CR (via the clabernetes/topologyOwner label) and all extra
+// ConfigMaps referenced by that Topology CR's filesFromConfigMap entries.
+//
+// The namespace is taken from --namespace; when empty the kubeconfig context namespace is used
+// (falling back to "default").
+func (u *Unclabverter) fetchSnapshotFromKubernetes() (
+	*k8scorev1.ConfigMap,
+	*StatuslessTopology,
+	map[string]k8scorev1.ConfigMap,
+	error,
+) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		loadingRules,
@@ -194,17 +219,17 @@ func (u *Unclabverter) fetchSnapshotFromKubernetes() (*k8scorev1.ConfigMap, *Sta
 
 	kubeConfig, err := clientConfig.ClientConfig()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed building kubeconfig for snapshot lookup: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed building kubeconfig for snapshot lookup: %w", err)
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed creating kubernetes client for snapshot lookup: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed creating kubernetes client: %w", err)
 	}
 
 	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed creating dynamic kubernetes client: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed creating dynamic kubernetes client: %w", err)
 	}
 
 	ns := u.namespace
@@ -217,26 +242,26 @@ func (u *Unclabverter) fetchSnapshotFromKubernetes() (*k8scorev1.ConfigMap, *Sta
 
 	u.logger.Infof("fetching snapshot ConfigMap %q from namespace %q", u.fromSnapshot, ns)
 
-	cm, err := kubeClient.CoreV1().ConfigMaps(ns).Get(
+	snapshotCM, err := kubeClient.CoreV1().ConfigMaps(ns).Get(
 		context.Background(),
 		u.fromSnapshot,
 		metav1.GetOptions{},
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf(
+		return nil, nil, nil, fmt.Errorf(
 			"failed fetching snapshot ConfigMap %q in namespace %q: %w",
 			u.fromSnapshot, ns, err,
 		)
 	}
 
-	// Attempt to fetch the Topology CR using the topologyOwner label on the snapshot ConfigMap.
-	topologyName := cm.Labels[clabernetesconstants.LabelTopologyOwner]
+	// Use the topologyOwner label to find and fetch the Topology CR.
+	topologyName := snapshotCM.Labels[clabernetesconstants.LabelTopologyOwner]
 	if topologyName == "" {
 		u.logger.Info(
 			"snapshot ConfigMap has no topologyOwner label; no containerlab YAML will be produced",
 		)
 
-		return cm, nil, nil
+		return snapshotCM, nil, nil, nil
 	}
 
 	u.logger.Infof("fetching Topology CR %q from namespace %q", topologyName, ns)
@@ -252,14 +277,14 @@ func (u *Unclabverter) fetchSnapshotFromKubernetes() (*k8scorev1.ConfigMap, *Sta
 			topologyName, ns, err,
 		)
 
-		return cm, nil, nil
+		return snapshotCM, nil, nil, nil
 	}
 
 	topoBytes, err := sigsyaml.Marshal(unstructuredTopo.Object)
 	if err != nil {
 		u.logger.Warnf("failed marshaling Topology CR (skipping containerlab YAML): %s", err)
 
-		return cm, nil, nil
+		return snapshotCM, nil, nil, nil
 	}
 
 	var topoCR StatuslessTopology
@@ -267,10 +292,43 @@ func (u *Unclabverter) fetchSnapshotFromKubernetes() (*k8scorev1.ConfigMap, *Sta
 	if err = sigsyaml.Unmarshal(topoBytes, &topoCR); err != nil {
 		u.logger.Warnf("failed parsing Topology CR (skipping containerlab YAML): %s", err)
 
-		return cm, nil, nil
+		return snapshotCM, nil, nil, nil
 	}
 
-	return cm, &topoCR, nil
+	// Fetch all extra ConfigMaps referenced in filesFromConfigMap (e.g. license/extra-files CMs).
+	extraCMs := map[string]k8scorev1.ConfigMap{}
+
+	for _, entries := range topoCR.Spec.Deployment.FilesFromConfigMap {
+		for _, entry := range entries {
+			if entry.ConfigMapName == u.fromSnapshot {
+				continue // snapshot CM is returned separately
+			}
+
+			if _, already := extraCMs[entry.ConfigMapName]; already {
+				continue
+			}
+
+			u.logger.Debugf("fetching extra ConfigMap %q from namespace %q", entry.ConfigMapName, ns)
+
+			cm, fetchErr := kubeClient.CoreV1().ConfigMaps(ns).Get(
+				context.Background(),
+				entry.ConfigMapName,
+				metav1.GetOptions{},
+			)
+			if fetchErr != nil {
+				u.logger.Warnf(
+					"failed fetching ConfigMap %q in namespace %q, skipping: %s",
+					entry.ConfigMapName, ns, fetchErr,
+				)
+
+				continue
+			}
+
+			extraCMs[cm.Name] = *cm
+		}
+	}
+
+	return snapshotCM, &topoCR, extraCMs, nil
 }
 
 // scanInputDirectory reads all *.yaml files in inputDirectory and classifies them as either the
@@ -288,7 +346,6 @@ func (u *Unclabverter) scanInputDirectory() (
 	entries, err := os.ReadDir(absInput)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Directory doesn't exist — treat as empty (no Topology CR, no ConfigMaps).
 			return nil, map[string]k8scorev1.ConfigMap{}, nil
 		}
 
@@ -318,7 +375,6 @@ func (u *Unclabverter) scanInputDirectory() (
 			continue
 		}
 
-		// Peek at the kind field.
 		var meta struct {
 			Kind     string `json:"kind"`
 			Metadata struct {
@@ -364,8 +420,10 @@ func (u *Unclabverter) scanInputDirectory() (
 	return topologyCR, configMaps, nil
 }
 
-// unclabvertFromOutputDir reconstructs the containerlab YAML and device config files from the
-// clabverter output directory's Topology CR and ConfigMaps.
+// unclabvertFromOutputDir reconstructs the containerlab YAML and device config files using the
+// Topology CR's filesFromConfigMap entries as the authoritative source of what to extract.
+// configMaps must contain all ConfigMaps referenced by filesFromConfigMap, including any snapshot
+// ConfigMap.
 func (u *Unclabverter) unclabvertFromOutputDir(
 	topologyCR *StatuslessTopology,
 	configMaps map[string]k8scorev1.ConfigMap,
@@ -377,14 +435,12 @@ func (u *Unclabverter) unclabvertFromOutputDir(
 		return fmt.Errorf("failed parsing embedded containerlab definition: %w", err)
 	}
 
-	filesFromCM := topologyCR.Spec.Deployment.FilesFromConfigMap
-
-	for nodeName, entries := range filesFromCM {
+	for nodeName, entries := range topologyCR.Spec.Deployment.FilesFromConfigMap {
 		for _, entry := range entries {
 			cm, ok := configMaps[entry.ConfigMapName]
 			if !ok {
 				u.logger.Warnf(
-					"ConfigMap %q not found in input directory (referenced by node %s), skipping",
+					"ConfigMap %q not found (referenced by node %s), skipping",
 					entry.ConfigMapName, nodeName,
 				)
 
@@ -406,8 +462,7 @@ func (u *Unclabverter) unclabvertFromOutputDir(
 				return writeErr
 			}
 
-			// Update startup-config reference if this entry came from a startup-config ConfigMap.
-			if strings.HasSuffix(entry.ConfigMapName, "-startup-config") {
+			if isStartupConfigEntry(entry.ConfigMapName, entry.ConfigMapPath) {
 				if node, nodeOk := clabConfig.Topology.Nodes[nodeName]; nodeOk {
 					relPath, relErr := filepath.Rel(u.outputDirectory, outPath)
 					if relErr != nil {
@@ -423,15 +478,19 @@ func (u *Unclabverter) unclabvertFromOutputDir(
 	return u.writeClabYAML(clabConfig)
 }
 
-// unclabvertFromSnapshot extracts the startup-config file for each node from a snapshot ConfigMap
-// and optionally reconstructs the containerlab YAML if a Topology CR is available.
-// Only the first non-save-output file per node is extracted (matching the forward direction's
-// behaviour of using exactly one file per node as the startup config).
-func (u *Unclabverter) unclabvertFromSnapshot(
-	topologyCR *StatuslessTopology,
-	snapshotCM *k8scorev1.ConfigMap,
-) error {
-	// Sort keys so that selection is deterministic across runs.
+// isStartupConfigEntry reports whether a filesFromConfigMap entry represents the startup-config
+// for its node. Two cases are handled:
+//   - Normal clabverter output: configMapName ends with "-startup-config"
+//   - Snapshot-based entry: configMapPath uses the "<nodeName>__<fileName>" snapshot key format
+func isStartupConfigEntry(configMapName, configMapPath string) bool {
+	return strings.HasSuffix(configMapName, "-startup-config") ||
+		strings.Contains(configMapPath, snapshotKeySeparator)
+}
+
+// unclabvertSnapshotFallback is used when a snapshot is available but no Topology CR can be found.
+// It extracts the first non-save-output config file per node (deterministic via sorted keys).
+// No containerlab YAML is produced since the topology structure is unknown.
+func (u *Unclabverter) unclabvertSnapshotFallback(snapshotCM *k8scorev1.ConfigMap) error {
 	sortedKeys := make([]string, 0, len(snapshotCM.Data))
 
 	for key := range snapshotCM.Data {
@@ -440,8 +499,7 @@ func (u *Unclabverter) unclabvertFromSnapshot(
 
 	sort.Strings(sortedKeys)
 
-	// Extract the first non-save-output file per node.
-	firstFilePerNode := map[string]string{} // nodeName → relative output path
+	seen := map[string]bool{} // nodes already written
 
 	for _, key := range sortedKeys {
 		parts := strings.SplitN(key, snapshotKeySeparator, 2)
@@ -453,50 +511,22 @@ func (u *Unclabverter) unclabvertFromSnapshot(
 
 		nodeName, fileName := parts[0], parts[1]
 
-		if fileName == "save-output" {
+		if fileName == "save-output" || seen[nodeName] {
 			continue
 		}
 
-		if _, seen := firstFilePerNode[nodeName]; seen {
-			continue
-		}
-
-		outPath, writeErr := u.writeDeviceFile(nodeName, fileName, snapshotCM.Data[key])
-		if writeErr != nil {
+		if _, writeErr := u.writeDeviceFile(nodeName, fileName, snapshotCM.Data[key]); writeErr != nil {
 			return writeErr
 		}
 
-		relPath, relErr := filepath.Rel(u.outputDirectory, outPath)
-		if relErr != nil {
-			relPath = outPath
-		}
-
-		firstFilePerNode[nodeName] = relPath
+		seen[nodeName] = true
 	}
 
-	if topologyCR == nil {
-		u.logger.Info(
-			"no Topology CR available; device config files extracted but no containerlab YAML produced",
-		)
-
-		return nil
-	}
-
-	// Reconstruct containerlab YAML with updated startup-config paths.
-	clabConfig, err := clabernetesutilcontainerlab.LoadContainerlabConfig(
-		topologyCR.Spec.Definition.Containerlab,
+	u.logger.Info(
+		"no Topology CR available; device config files extracted but no containerlab YAML produced",
 	)
-	if err != nil {
-		return fmt.Errorf("failed parsing embedded containerlab definition: %w", err)
-	}
 
-	for nodeName, relPath := range firstFilePerNode {
-		if node, ok := clabConfig.Topology.Nodes[nodeName]; ok {
-			node.StartupConfig = relPath
-		}
-	}
-
-	return u.writeClabYAML(clabConfig)
+	return nil
 }
 
 // writeDeviceFile writes content to <outputDirectory>/<nodeName>/<fileName> and returns the
