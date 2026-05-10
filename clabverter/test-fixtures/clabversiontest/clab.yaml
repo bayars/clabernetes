@@ -9,12 +9,10 @@ topology:
       kind: srl
       image: ghcr.io/nokia/srlinux
       startup-config: srl1.cfg
-      license: taco/srl1.license
     srl2:
       kind: srl
       image: ghcr.io/nokia/srlinux
       startup-config: srl2.cfg
-      license: srl2.license
       binds:
         - __clabDir__/potato.txt:/potato.txt
         - __clabNodeDir__/potato.txt:/nodedir-potato.txt

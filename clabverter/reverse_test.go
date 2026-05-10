@@ -16,9 +16,9 @@ import (
 
 func TestUnclabvert(t *testing.T) {
 	cases := []struct {
-		name             string
-		// topologyFile is the containerlab input for the forward pass that produces the input dir.
-		// When empty, inputDirectory must point directly to a pre-built fixture directory.
+		name string
+		// topologyFile drives a forward conversion whose output is used as the input directory.
+		// Set inputDirectory instead when a pre-built fixture should be used directly.
 		topologyFile         string
 		topologySpecFile     string
 		destinationNamespace string
@@ -26,7 +26,9 @@ func TestUnclabvert(t *testing.T) {
 		imagePullSecrets     string
 		naming               string
 		containerlabVersion  string
-		fromSnapshotFile     string
+		// inputDirectory overrides the forward-conversion result when set (pre-built fixture).
+		inputDirectory   string
+		fromSnapshotFile string
 	}{
 		{
 			// Round-trip: forward-convert the simple topology, then reverse it.
@@ -38,14 +40,13 @@ func TestUnclabvert(t *testing.T) {
 			naming:               "prefixed",
 		},
 		{
-			// Round-trip with snapshot: forward-convert then reverse using a snapshot ConfigMap.
-			name:                 "snapshot",
-			topologyFile:         "test-fixtures/clabversiontest/clab.yaml",
-			destinationNamespace: "notclabernetes",
-			insecureRegistries:   "1.2.3.4",
-			imagePullSecrets:     "regcred",
-			naming:               "prefixed",
-			fromSnapshotFile:     "test-fixtures/snapshot/snapshot-cm.yaml",
+			// Snapshot with Topology CR: uses a pre-built input directory that contains a Topology
+			// CR whose filesFromConfigMap entries reference the snapshot CM (simulating what the
+			// forward converter produces when run with --from-snapshot). Extra-files CMs for
+			// licenses are also in the input directory.
+			name:             "snapshot",
+			inputDirectory:   "test-fixtures/snapshot-input",
+			fromSnapshotFile: "test-fixtures/snapshot/snapshot-cm.yaml",
 		},
 		{
 			// Snapshot-only: no Topology CR, just extract device config files.
@@ -83,10 +84,15 @@ func TestUnclabvert(t *testing.T) {
 				}
 			}()
 
-			inputDir := forwardDir
+			var inputDir string
 
-			// Run the forward conversion to produce the input for the reverse pass.
-			if testCase.topologyFile != "" {
+			switch {
+			case testCase.inputDirectory != "":
+				// Use a pre-built fixture directory directly.
+				inputDir = testCase.inputDirectory
+
+			case testCase.topologyFile != "":
+				// Run the forward conversion to produce the input for the reverse pass.
 				fwd := clabernetesclabverter.MustNewClabverter(
 					testCase.topologyFile,
 					testCase.topologySpecFile,
@@ -109,8 +115,11 @@ func TestUnclabvert(t *testing.T) {
 
 				logManager := claberneteslogging.GetManager()
 				logManager.DeleteLogger(clabernetesconstants.Clabverter)
-			} else {
-				// No forward pass — inputDir stays empty (snapshot-only case).
+
+				inputDir = forwardDir
+
+			default:
+				// snapshot-only: no Topology CR available.
 				inputDir = ""
 			}
 
@@ -118,6 +127,7 @@ func TestUnclabvert(t *testing.T) {
 				inputDir,
 				actualDir,
 				testCase.fromSnapshotFile,
+				"", // namespace — empty uses kubeconfig context (irrelevant for file-based snapshot)
 				false,
 				true,
 			)

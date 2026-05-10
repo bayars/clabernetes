@@ -10,6 +10,7 @@ const (
 	reverseInputDirectory  = "input-directory"
 	reverseOutputDirectory = "output-directory"
 	reverseFromSnapshot    = "from-snapshot"
+	reverseNamespace       = "namespace"
 )
 
 func reverseCommand() *cli.Command {
@@ -31,8 +32,16 @@ func reverseCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name: reverseFromSnapshot,
-				Usage: "path to a snapshot ConfigMap YAML file; when set, device configs are sourced" +
-					" from the snapshot instead of the output-directory ConfigMaps",
+				Usage: "snapshot ConfigMap name (fetched from Kubernetes) or path to a local" +
+					" snapshot ConfigMap YAML file; when set, device configs are sourced from the" +
+					" snapshot instead of the output-directory ConfigMaps",
+				Required: false,
+				Value:    "",
+			},
+			&cli.StringFlag{
+				Name: reverseNamespace,
+				Usage: "Kubernetes namespace to use when fetching a snapshot ConfigMap by name;" +
+					" defaults to the current kubeconfig context namespace",
 				Required: false,
 				Value:    "",
 			},
@@ -54,6 +63,7 @@ func reverseCommand() *cli.Command {
 				c.String(reverseInputDirectory),
 				c.String(reverseOutputDirectory),
 				c.String(reverseFromSnapshot),
+				c.String(reverseNamespace),
 				c.Bool(debug),
 				c.Bool(quiet),
 			).Unclabvert()
