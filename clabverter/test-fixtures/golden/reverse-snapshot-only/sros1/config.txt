@@ -1,0 +1,1 @@
+/configure system name sros1

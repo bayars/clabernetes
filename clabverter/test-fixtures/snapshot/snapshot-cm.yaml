@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: topo01-snapshot
+  namespace: notclabernetes
+data:
+  srl1__checkpoint-0.json: |
+    {"config": {"interface": {}}}
+  srl1__save-output: |
+    Saved checkpoint for srl1
+  srl2__running-config.cfg: |
+    set / interface ethernet-1/1
+  sros1__config.txt: |
+    /configure system name sros1
+  sros1__save-output: |
+    Saved via NETCONF
