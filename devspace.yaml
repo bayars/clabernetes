@@ -4,4 +4,5 @@ commands:
   deploy: "DEVSPACE_CONFIG=./.develop/devspace.yaml devspace deploy $@"
   build: "DEVSPACE_CONFIG=./.develop/devspace.yaml devspace build $@"
   purge: "DEVSPACE_CONFIG=./.develop/devspace.yaml devspace purge $@"
+  kind-purge: "DEVSPACE_CONFIG=./.develop/devspace.yaml devspace run-pipeline kind-purge $@"
   pipeline: "DEVSPACE_CONFIG=./.develop/devspace.yaml devspace run-pipeline $@"

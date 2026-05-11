@@ -9,6 +9,18 @@ vars:
     source: env
     default: ghcr.io/srl-labs/clabernetes
 
+  # Kind cluster name. Override with KIND_CLUSTER_NAME env var.
+  KIND_CLUSTER_NAME:
+    source: env
+    default: clabernetes
+
+  # Set SKIP_KIND_SETUP=true when targeting a non-kind cluster (AKS, GKE, etc.).
+  # When false (default), devspace auto-creates the kind cluster, switches kubectl
+  # context, ensures the namespace exists, and loads built images into kind.
+  SKIP_KIND_SETUP:
+    source: env
+    default: "false"
+
   PULL_POLICY: IfNotPresent
 
   CLABERNETES: clabernetes
@@ -273,7 +285,22 @@ pipelines:
   dev:
     # override the default dev pipeline to not bother building clabverter while doing dev things
     run: |
+      if [ "${SKIP_KIND_SETUP}" != "true" ]; then
+        if ! kind get clusters 2>/dev/null | grep -q "^${KIND_CLUSTER_NAME}$"; then
+          echo "kind cluster '${KIND_CLUSTER_NAME}' not found — creating it..."
+          kind create cluster --name ${KIND_CLUSTER_NAME}
+        fi
+        kubectl config use-context kind-${KIND_CLUSTER_NAME}
+        kubectl create namespace ${DEVSPACE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+      fi
       build_images clabernetes-dev clabernetes clabernetes-launcher clabernetes-ui
+      if [ "${SKIP_KIND_SETUP}" != "true" ]; then
+        echo "Loading images into kind cluster '${KIND_CLUSTER_NAME}'..."
+        kind load docker-image ${MANAGER_DEV_IMAGE}:${COMMIT_HASH} --name ${KIND_CLUSTER_NAME}
+        kind load docker-image ${MANAGER_IMAGE}:dev-latest --name ${KIND_CLUSTER_NAME}
+        kind load docker-image ${LAUNCHER_IMAGE}:dev-latest --name ${KIND_CLUSTER_NAME}
+        kind load docker-image ${UI_IMAGE}:dev-latest --name ${KIND_CLUSTER_NAME}
+      fi
       create_deployments --all
       start_dev --all
 
@@ -281,8 +308,22 @@ pipelines:
     # override the default dev pipeline to not bother building clabverter or dev image while doing
     # deploy pipeline
     run: |
+      if [ "${SKIP_KIND_SETUP}" != "true" ]; then
+        if ! kind get clusters 2>/dev/null | grep -q "^${KIND_CLUSTER_NAME}$"; then
+          echo "kind cluster '${KIND_CLUSTER_NAME}' not found — creating it..."
+          kind create cluster --name ${KIND_CLUSTER_NAME}
+        fi
+        kubectl config use-context kind-${KIND_CLUSTER_NAME}
+        kubectl create namespace ${DEVSPACE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+      fi
       run_dependencies --all
       build_images clabernetes clabernetes-launcher clabernetes-ui
+      if [ "${SKIP_KIND_SETUP}" != "true" ]; then
+        echo "Loading images into kind cluster '${KIND_CLUSTER_NAME}'..."
+        kind load docker-image ${MANAGER_IMAGE}:dev-latest --name ${KIND_CLUSTER_NAME}
+        kind load docker-image ${LAUNCHER_IMAGE}:dev-latest --name ${KIND_CLUSTER_NAME}
+        kind load docker-image ${UI_IMAGE}:dev-latest --name ${KIND_CLUSTER_NAME}
+      fi
       create_deployments --all
 
   purge:
@@ -293,3 +334,17 @@ pipelines:
         $(kubectl get leases -n ${DEVSPACE_NAMESPACE} 2> /dev/null | grep "clabernetes" | awk '{print $1}') 2> /dev/null || true
       kubectl delete crds \
         $(kubectl get crds 2> /dev/null | grep "clabernetes" | awk '{print $1}') 2> /dev/null || true
+
+  # Purges the deployment AND deletes the kind cluster. Only runs when SKIP_KIND_SETUP != true.
+  kind-purge:
+    run: |-
+      stop_dev --all
+      purge_deployments --all
+      kubectl delete leases -n ${DEVSPACE_NAMESPACE} \
+        $(kubectl get leases -n ${DEVSPACE_NAMESPACE} 2> /dev/null | grep "clabernetes" | awk '{print $1}') 2> /dev/null || true
+      kubectl delete crds \
+        $(kubectl get crds 2> /dev/null | grep "clabernetes" | awk '{print $1}') 2> /dev/null || true
+      if [ "${SKIP_KIND_SETUP}" != "true" ]; then
+        echo "Deleting kind cluster '${KIND_CLUSTER_NAME}'..."
+        kind delete cluster --name ${KIND_CLUSTER_NAME}
+      fi
