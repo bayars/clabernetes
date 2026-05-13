@@ -228,6 +228,12 @@ type Deployment struct {
 	// +optional
 	// +listType=atomic
 	ExtraContainers []k8scorev1.Container `json:"extraContainers,omitempty"`
+	// StartupConfigPVCSize is the size of the per-node PVC created to store the node's startup
+	// configuration. This PVC is provisioned automatically for any node that has a startup-config
+	// defined and is mounted directly into the launcher pod. Defaults to "50Mi". Must be a valid
+	// Kubernetes resource quantity string.
+	// +optional
+	StartupConfigPVCSize string `json:"startupConfigPVCSize,omitempty"`
 }
 
 // Scheduling holds information about how the launcher pod(s) should be configured with respect

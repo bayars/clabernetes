@@ -114,7 +114,24 @@ func (c *Controller) reconcileResources(
 	topology *clabernetesapisv1alpha1.Topology,
 	reconcileData *ReconcileData,
 ) error {
-	err := c.TopologyReconciler.ReconcileConfigMap(
+	// ReconcileStartupConfigs must run before ReconcileConfigMap so that inline startup-config
+	// content is replaced with PVC path references in ResolvedConfigs before the main ConfigMap
+	// is rendered.
+	err := c.TopologyReconciler.ReconcileStartupConfigs(
+		ctx,
+		topology,
+		reconcileData,
+	)
+	if err != nil {
+		c.BaseController.Log.Criticalf(
+			"failed reconciling startup config resources, error: %s",
+			err,
+		)
+
+		return err
+	}
+
+	err = c.TopologyReconciler.ReconcileConfigMap(
 		ctx,
 		topology,
 		reconcileData,

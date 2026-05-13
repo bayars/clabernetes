@@ -45,3 +45,29 @@ const (
 	// pods.
 	LauncherCRISockPath = "/clabernetes/.node"
 )
+
+const (
+	// MaxConfigMapDataBytes is a conservative byte limit for a single ConfigMap key's value.
+	// Kubernetes/etcd hard-limits ConfigMaps to ~1MB total; we leave a buffer for metadata.
+	MaxConfigMapDataBytes = 900_000
+
+	// StartupConfigSeedCMSuffix is the suffix appended to topology+node names for the per-node
+	// seed ConfigMap that holds the raw startup-config content.
+	StartupConfigSeedCMSuffix = "startup-seed"
+
+	// StartupConfigPVCSuffix is the suffix appended to topology+node names for the per-node PVC
+	// that permanently stores the startup-config for the launcher.
+	StartupConfigPVCSuffix = "startup-cfg"
+
+	// StartupConfigPVCDefaultSize is the default PVC size for per-node startup config PVCs.
+	StartupConfigPVCDefaultSize = "50Mi"
+
+	// StartupConfigSeedMountPath is where the seed ConfigMap is mounted inside the launcher pod.
+	StartupConfigSeedMountPath = "/clabernetes/startup-seed"
+
+	// StartupConfigPVCMountPath is where the startup-config PVC is mounted inside the launcher pod.
+	StartupConfigPVCMountPath = "/clabernetes/startup-cfg"
+
+	// StartupConfigFileName is the key/filename used for startup config content.
+	StartupConfigFileName = "startup-config"
+)

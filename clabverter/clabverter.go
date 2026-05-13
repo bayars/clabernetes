@@ -27,7 +27,6 @@ import (
 const (
 	specIndentSpaces           = 4
 	specDefinitionIndentSpaces = 10
-	maxBytesForConfigMap       = 950_000
 )
 
 // StatuslessTopology is the same as a "normal" Topology without the status field since this field

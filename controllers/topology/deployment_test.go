@@ -795,6 +795,7 @@ func TestRenderDeployment(t *testing.T) {
 					testCase.owningTopology,
 					testCase.clabernetesConfigs,
 					testCase.nodeName,
+					clabernetescontrollerstopology.NewReconcileDataForTest(),
 				)
 
 				if *clabernetestesthelper.Update {

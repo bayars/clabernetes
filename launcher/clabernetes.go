@@ -190,6 +190,13 @@ func (c *clabernetes) setup() {
 		c.logger.Warn("docker started, but using legacy ip tables")
 	}
 
+	c.logger.Debug("ensuring startup-config is seeded to PVC if needed...")
+
+	err = c.ensureStartupConfig()
+	if err != nil {
+		c.logger.Fatalf("failed seeding startup-config to PVC, err: %s", err)
+	}
+
 	c.logger.Debug("getting files from url if requested...")
 
 	err = c.getFilesFromURL()

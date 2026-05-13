@@ -29,6 +29,10 @@ const (
 	// is -- that is, it is either a "connectivity" service, or an "expose" service; note that
 	// this is strictly a clabernetes concept, obviously not a kubernetes one!
 	LabelTopologyServiceType = "clabernetes/topologyServiceType"
+
+	// LabelTopologyRole identifies the sub-role of a topology-owned resource (e.g.
+	// "startup-seed", "startup-cfg") to distinguish resources of the same kind within a topology.
+	LabelTopologyRole = "clabernetes/topologyRole"
 )
 
 const (

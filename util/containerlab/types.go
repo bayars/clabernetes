@@ -96,6 +96,17 @@ func (t *Topology) GetNodeImage(nodeName string) string {
 	return t.Defaults.Image
 }
 
+// GetNodeStartupConfig returns the startup-config value for the given node, resolving from the
+// node definition only (startup-config is typically node-specific and not inherited from kinds).
+func (t *Topology) GetNodeStartupConfig(nodeName string) string {
+	nodeDefinition, ok := t.Nodes[nodeName]
+	if !ok {
+		return ""
+	}
+
+	return nodeDefinition.StartupConfig
+}
+
 // GetNodeLicense returns the resolved license for the given node.
 func (t *Topology) GetNodeLicense(nodeName string) string {
 	containerlabKind, _ := t.GetNodeKindType(nodeName)
