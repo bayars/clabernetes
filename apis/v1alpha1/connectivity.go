@@ -14,7 +14,8 @@ type Connectivity struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec   ConnectivitySpec   `json:"spec,omitzero"`
+	Spec ConnectivitySpec `json:"spec,omitzero"`
+	// +optional
 	Status ConnectivityStatus `json:"status,omitzero"`
 }
 

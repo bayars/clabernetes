@@ -2068,6 +2068,18 @@ spec:
                         type: array
                         x-kubernetes-list-type: atomic
                     type: object
+                  startupConfigPVCSize:
+                    description: |-
+                      StartupConfigPVCSize is the size of the per-node PVC created to store the node's startup
+                      configuration. This PVC is provisioned automatically for any node that has a startup-config
+                      defined and is mounted directly into the launcher pod. Overrides the global config value.
+                      Must be a valid Kubernetes resource quantity string (e.g. "50Mi", "1Gi").
+                    type: string
+                  startupConfigStorageClassName:
+                    description: |-
+                      StartupConfigStorageClassName is the storage class to use for per-node startup-config PVCs.
+                      Overrides the global config value. When unset, the cluster's default storage class is used.
+                    type: string
                 type: object
               expose:
                 description: Expose holds configurations relevant to how clabernetes
@@ -2251,26 +2263,32 @@ spec:
                       properties:
                         containerHealthProbeConfiguration:
                           description: |-
-                            ContainerHealthProbeConfiguration defines a container health probe that checks the
-                            Docker HEALTHCHECK status of the node container via docker inspect. Requires no
-                            credentials or port knowledge. Works best for vrnetlab-based images which define a
-                            HEALTHCHECK that internally verifies the QEMU VM and NOS are ready.
+                            ContainerHealthProbeConfiguration defines a container health probe -- this checks the
+                            Docker-level health status of the node container (i.e. the result of any HEALTHCHECK
+                            instruction defined in the container image). This probe requires no credentials or port
+                            knowledge and works well for vrnetlab-based images which define a HEALTHCHECK that
+                            internally verifies the QEMU VM and NOS are ready.
                           properties:
                             enabled:
                               default: true
-                              description: Enabled enables the container health probe.
+                              description: |-
+                                Enabled enables the container health probe. Set to true to use the Docker HEALTHCHECK
+                                status of the node container as the probe signal.
                               type: boolean
                           required:
                           - enabled
                           type: object
                         execProbeConfiguration:
                           description: |-
-                            ExecProbeConfiguration defines an exec probe that runs a command inside the node
-                            container via docker exec. The probe passes when the command exits with code 0.
+                            ExecProbeConfiguration defines an exec probe -- a command run inside the node container.
+                            This is the most flexible probe type and works with any node that has a shell or binary
+                            available to indicate health. The command is executed via docker exec inside the node
+                            container and the probe is successful if the command exits with code 0.
                           properties:
                             command:
-                              description: Command is the command (and arguments) to
-                                execute inside the node container.
+                              description: |-
+                                Command is the command (and arguments) to execute inside the node container. The command is
+                                run via docker exec and must exit with code 0 to indicate a healthy state.
                               items:
                                 type: string
                               type: array
@@ -2330,26 +2348,32 @@ spec:
                     properties:
                       containerHealthProbeConfiguration:
                         description: |-
-                          ContainerHealthProbeConfiguration defines a container health probe that checks the
-                          Docker HEALTHCHECK status of the node container via docker inspect. Requires no
-                          credentials or port knowledge. Works best for vrnetlab-based images which define a
-                          HEALTHCHECK that internally verifies the QEMU VM and NOS are ready.
+                          ContainerHealthProbeConfiguration defines a container health probe -- this checks the
+                          Docker-level health status of the node container (i.e. the result of any HEALTHCHECK
+                          instruction defined in the container image). This probe requires no credentials or port
+                          knowledge and works well for vrnetlab-based images which define a HEALTHCHECK that
+                          internally verifies the QEMU VM and NOS are ready.
                         properties:
                           enabled:
                             default: true
-                            description: Enabled enables the container health probe.
+                            description: |-
+                              Enabled enables the container health probe. Set to true to use the Docker HEALTHCHECK
+                              status of the node container as the probe signal.
                             type: boolean
                         required:
                         - enabled
                         type: object
                       execProbeConfiguration:
                         description: |-
-                          ExecProbeConfiguration defines an exec probe that runs a command inside the node
-                          container via docker exec. The probe passes when the command exits with code 0.
+                          ExecProbeConfiguration defines an exec probe -- a command run inside the node container.
+                          This is the most flexible probe type and works with any node that has a shell or binary
+                          available to indicate health. The command is executed via docker exec inside the node
+                          container and the probe is successful if the command exits with code 0.
                         properties:
                           command:
-                            description: Command is the command (and arguments) to
-                              execute inside the node container.
+                            description: |-
+                              Command is the command (and arguments) to execute inside the node container. The command is
+                              run via docker exec and must exit with code 0 to indicate a healthy state.
                             items:
                               type: string
                             type: array
@@ -2654,6 +2678,9 @@ spec:
             - removeTopologyPrefix
             - topologyReady
             type: object
+        required:
+        - metadata
+        - spec
         type: object
     served: true
     storage: true

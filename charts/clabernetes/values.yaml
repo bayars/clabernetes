@@ -175,6 +175,16 @@ globalConfig:
     # be ignored if a Topology has an extraContainers config.
     extraContainers: []
 
+    # startupConfigPVCSize is the global default size for per-node startup-config PVCs. A Topology
+    # CR's spec.deployment.startupConfigPVCSize overrides this. Must be a valid Kubernetes resource
+    # quantity string (e.g. "50Mi", "1Gi"). Defaults to "50Mi" when unset.
+    startupConfigPVCSize: ""
+
+    # startupConfigStorageClassName is the global default storage class for per-node startup-config
+    # PVCs. A Topology CR's spec.deployment.startupConfigStorageClassName overrides this. When
+    # unset, the cluster's default storage class is used.
+    startupConfigStorageClassName: ""
+
   # name is the global setting that governs a Topology's "naming" field when set to "global".
   # valid options are "prefixed" or "non-prefixed", see the api types for more detail.
   naming: prefixed

@@ -19,7 +19,8 @@ type Snapshot struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec   SnapshotSpec   `json:"spec,omitzero"`
+	Spec SnapshotSpec `json:"spec,omitzero"`
+	// +optional
 	Status SnapshotStatus `json:"status,omitzero"`
 }
 

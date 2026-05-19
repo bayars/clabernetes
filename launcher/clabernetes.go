@@ -114,11 +114,17 @@ func (c *clabernetes) startup() {
 	c.containerlabVersion()
 	c.setup()
 	c.image()
+
+	// Start probes before launch() so they can begin as soon as the container is running,
+	// even if containerlab's postdeploy action is still blocking (e.g. nokia_srsim waits
+	// for device boot inside postdeploy, so launch() doesn't return until boot is complete,
+	// but port 22 / TCP may be up long before that).
+	go c.runProbes()
+
 	c.launch()
 	c.connectivity()
 
 	go c.imageCleanup()
-	go c.runProbes()
 	go c.watchContainers()
 
 	c.logger.Info("running for forever or until sigint...")
@@ -350,9 +356,28 @@ func (c *clabernetes) runProbes() {
 	for range ticker.C {
 		// nodeAddr is only needed for TCP and SSH probes
 		if (runTCPProbe || runSSHProbe) && nodeAddr == "" {
+			// c.nodeContainerID is set by launch() after containerlab exits, but for nodes
+			// like nokia_srsim whose postdeploy blocks until full boot, the container is
+			// already running long before launch() returns. Fall back to a name-based lookup
+			// so probes can start as soon as the container is up.
+			containerID := c.nodeContainerID
+			if containerID == "" {
+				var idErr error
+
+				containerID, idErr = getContainerIDForNodeName(c.ctx, c.nodeName)
+				if idErr != nil || containerID == "" {
+					c.logger.Debugf(
+						"node %q container not yet available, will retry next probe tick",
+						c.nodeName,
+					)
+
+					continue
+				}
+			}
+
 			var err error
 
-			nodeAddr, err = getContainerAddr(c.ctx, c.nodeContainerID)
+			nodeAddr, err = getContainerAddr(c.ctx, containerID)
 			if err != nil {
 				c.logger.Warnf(
 					"failed determining node %q address, error: %s",

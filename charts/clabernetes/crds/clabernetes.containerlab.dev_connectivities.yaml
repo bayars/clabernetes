@@ -97,6 +97,9 @@ spec:
           status:
             description: ConnectivityStatus is the status for a Connectivity resource.
             type: object
+        required:
+        - metadata
+        - spec
         type: object
     served: true
     storage: true

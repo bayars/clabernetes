@@ -247,7 +247,12 @@ func (r *StartupConfigReconciler) RenderStartupPVC(
 
 	maps.Copy(labels, globalLabels)
 
+	// PVC size: topology → global config → compiled default
 	pvcSizeStr := owningTopology.Spec.Deployment.StartupConfigPVCSize
+	if pvcSizeStr == "" {
+		pvcSizeStr = r.configManagerGetter().GetStartupConfigPVCSize()
+	}
+
 	if pvcSizeStr == "" {
 		pvcSizeStr = clabernetesconstants.StartupConfigPVCDefaultSize
 	}
@@ -261,6 +266,12 @@ func (r *StartupConfigReconciler) RenderStartupPVC(
 		)
 
 		pvcSize = resource.MustParse(clabernetesconstants.StartupConfigPVCDefaultSize)
+	}
+
+	// Storage class: topology → global config → cluster default (nil means use cluster default)
+	storageClassName := owningTopology.Spec.Deployment.StartupConfigStorageClassName
+	if storageClassName == "" {
+		storageClassName = r.configManagerGetter().GetStartupConfigStorageClassName()
 	}
 
 	pvc := &k8scorev1.PersistentVolumeClaim{
@@ -281,6 +292,10 @@ func (r *StartupConfigReconciler) RenderStartupPVC(
 			},
 			VolumeMode: clabernetesutil.ToPointer(k8scorev1.PersistentVolumeFilesystem),
 		},
+	}
+
+	if storageClassName != "" {
+		pvc.Spec.StorageClassName = &storageClassName
 	}
 
 	if existingPVC != nil {
@@ -309,6 +324,27 @@ func (r *StartupConfigReconciler) ConformsStartupPVC(
 				"PVC size can only be increased, ignoring shrink request",
 			existingPVC.Spec.Resources.Requests.Storage().String(),
 			renderedPVC.Spec.Resources.Requests.Storage().String(),
+		)
+	}
+
+	// Storage class cannot be changed once a PVC is created; warn if it differs.
+	renderedStorageClass := ""
+	if renderedPVC.Spec.StorageClassName != nil {
+		renderedStorageClass = *renderedPVC.Spec.StorageClassName
+	}
+
+	existingStorageClass := ""
+	if existingPVC.Spec.StorageClassName != nil {
+		existingStorageClass = *existingPVC.Spec.StorageClassName
+	}
+
+	if renderedStorageClass != "" && renderedStorageClass != existingStorageClass {
+		r.log.Warnf(
+			"startup config PVC storage class %q differs from existing %q; "+
+				"storage class cannot be changed on an existing PVC — "+
+				"delete the PVC to apply the new storage class",
+			renderedStorageClass,
+			existingStorageClass,
 		)
 	}
 

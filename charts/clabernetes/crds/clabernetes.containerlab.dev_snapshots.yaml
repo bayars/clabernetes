@@ -72,6 +72,12 @@ spec:
                 description: ConfigMapRef is the name of the ConfigMap holding saved
                   node configs.
                 type: string
+              failedNodes:
+                additionalProperties:
+                  type: string
+                description: FailedNodes maps node name to the failure reason for
+                  nodes that could not be snapshotted.
+                type: object
               message:
                 description: Message holds any error or informational message.
                 type: string
@@ -85,13 +91,16 @@ spec:
                 type: object
               phase:
                 description: 'Phase is the current lifecycle phase: Pending, Running,
-                  Completed, Failed.'
+                  Completed, PartiallySuccessful, Failed.'
                 type: string
               timestamp:
                 description: Timestamp is when the snapshot was completed (RFC3339
                   format).
                 type: string
             type: object
+        required:
+        - metadata
+        - spec
         type: object
     served: true
     storage: true

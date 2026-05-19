@@ -161,6 +161,11 @@ type Manager interface { //nolint: interfacebloat
 	GetContainerlabVersion() string
 	// GetContainerlabExtraArgs returns the global config containerlab extra args.
 	GetContainerlabExtraArgs() []string
+	// GetStartupConfigPVCSize returns the global default size for startup-config PVCs.
+	GetStartupConfigPVCSize() string
+	// GetStartupConfigStorageClassName returns the global default storage class name for
+	// startup-config PVCs. Empty string means use the cluster default.
+	GetStartupConfigStorageClassName() string
 }
 
 type manager struct {
