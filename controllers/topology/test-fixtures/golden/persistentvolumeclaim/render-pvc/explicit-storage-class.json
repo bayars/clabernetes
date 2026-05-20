@@ -2,13 +2,13 @@
     "metadata": {
         "name": "pvc-test-node1",
         "namespace": "clabernetes",
-        "creationTimestamp": null,
         "labels": {
             "clabernetes/app": "clabernetes",
             "clabernetes/name": "pvc-test-node1",
             "clabernetes/topologyKind": "containerlab",
             "clabernetes/topologyNode": "node1",
-            "clabernetes/topologyOwner": "pvc-test"
+            "clabernetes/topologyOwner": "pvc-test",
+            "clabernetes/topologyRole": "node"
         }
     },
     "spec": {

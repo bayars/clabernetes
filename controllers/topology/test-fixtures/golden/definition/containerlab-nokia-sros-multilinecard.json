@@ -332,5 +332,6 @@
     "TopologyState": "",
     "NodeProbeStatuses": null,
     "NodesNeedingReboot": null,
+    "NodesWithStartupConfigPVC": null,
     "ShouldUpdateResource": false
 }
