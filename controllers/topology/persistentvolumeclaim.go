@@ -67,6 +67,15 @@ func (r *PersistentVolumeClaimReconciler) Resolve(
 			)
 		}
 
+		// The list query uses only LabelTopologyOwner, so startup-config PVCs (which share
+		// the same owner label but carry LabelTopologyRole=startup-cfg) are included. Skip
+		// any PVC whose role label is set to something other than NodePersistencePVCRole so
+		// the startup-cfg reconciler manages those independently.
+		if role, hasRole := labels[clabernetesconstants.LabelTopologyRole]; hasRole &&
+			role != clabernetesconstants.NodePersistencePVCRole {
+			continue
+		}
+
 		pvcs.Current[nodeName] = &ownedPVCs.Items[i]
 	}
 
@@ -213,6 +222,10 @@ func (r *PersistentVolumeClaimReconciler) renderPVCBase(
 		clabernetesconstants.LabelName:          deploymentName,
 		clabernetesconstants.LabelTopologyOwner: owningTopologyName,
 		clabernetesconstants.LabelTopologyNode:  nodeName,
+		// NodePersistencePVCRole distinguishes regular persistence PVCs from startup-config PVCs,
+		// which share the same LabelTopologyOwner/LabelTopologyNode labels. Without this the PVC
+		// reconciler would pick up startup-cfg PVCs and fail trying to update them as node PVCs.
+		clabernetesconstants.LabelTopologyRole: clabernetesconstants.NodePersistencePVCRole,
 	}
 
 	labels := map[string]string{
