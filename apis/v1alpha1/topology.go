@@ -70,7 +70,8 @@ type Topology struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec   TopologySpec   `json:"spec,omitzero"`
+	Spec TopologySpec `json:"spec,omitzero"`
+	// +optional
 	Status TopologyStatus `json:"status,omitzero"`
 }
 

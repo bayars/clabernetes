@@ -51,6 +51,12 @@ rules:
       - patch
       - watch
   - apiGroups:
+      - ""
+    resources:
+      - pods/exec
+    verbs:
+      - create
+  - apiGroups:
       - coordination.k8s.io
     resources:
       - leases

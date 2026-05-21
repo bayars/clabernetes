@@ -172,7 +172,7 @@ func (c *Controller) collectNodeSnapshots(
 
 		nodeFileKeys, nodeErr := c.saveAndCollectNodeFiles(
 			ctx, topologyNamespace, targetPod.Name, nodeName,
-			clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName), configMapData,
+			clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName), snapshot.Name, configMapData,
 		)
 		if nodeErr != nil {
 			failedNodes[nodeName] = nodeErr.Error()
@@ -230,7 +230,7 @@ func (c *Controller) findRunningPod(
 
 func (c *Controller) saveAndCollectNodeFiles(
 	ctx context.Context,
-	namespace, podName, nodeName, containerName string,
+	namespace, podName, nodeName, containerName, snapshotName string,
 	configMapData map[string]string,
 ) ([]string, error) {
 	saveOutput, saveErr := c.execInPod(
@@ -248,9 +248,10 @@ func (c *Controller) saveAndCollectNodeFiles(
 		c.BaseController.Log.Warnf("containerlab save failed for node %q: %s", nodeName, saveErr)
 	}
 
-	// Always store save output — even on error it contains useful diagnostic info.
+	// Always store save output in the CM — it is small diagnostic text, never config content.
 	configMapData[fmt.Sprintf("%s__save-output", nodeName)] = saveOutput
 
+	// Use || true so a missing directory (node kind doesn't support save) never exits non-zero.
 	savedFilesOutput, listErr := c.execInPod(
 		ctx,
 		namespace,
@@ -260,7 +261,7 @@ func (c *Controller) saveAndCollectNodeFiles(
 			"sh",
 			"-c",
 			fmt.Sprintf(
-				"find /clabernetes/clab-clabernetes-%s/%s/ -type f 2>/dev/null",
+				"dir=/clabernetes/clab-clabernetes-%s/%s/; [ -d \"$dir\" ] && find \"$dir\" -type f 2>/dev/null || true",
 				nodeName,
 				nodeName,
 			),
@@ -290,32 +291,131 @@ func (c *Controller) saveAndCollectNodeFiles(
 			continue
 		}
 
-		fileContent, readErr := c.execInPod(
-			ctx, namespace, podName, containerName, []string{"cat", filePath},
+		fileName := filePath[strings.LastIndex(filePath, "/")+1:]
+
+		// Archive the file into the startup-cfg PVC instead of inlining it in the ConfigMap.
+		// The CM only records the archive path so operators know where to find the snapshot.
+		archivePath, archiveErr := c.archiveFileInPVC(
+			ctx, namespace, podName, containerName, nodeName, snapshotName, filePath, fileName,
 		)
-		if readErr != nil {
+		if archiveErr != nil {
 			c.BaseController.Log.Warnf(
-				"failed reading file %q for node %q: %s",
+				"failed archiving file %q for node %q into PVC: %s — falling back to ConfigMap",
 				filePath,
 				nodeName,
-				readErr,
+				archiveErr,
 			)
+
+			// Fallback: read content and store in CM so the snapshot is not empty.
+			fileContent, readErr := c.execInPod(
+				ctx, namespace, podName, containerName, []string{"cat", filePath},
+			)
+			if readErr != nil {
+				c.BaseController.Log.Warnf(
+					"fallback CM read of %q for node %q also failed: %s",
+					filePath,
+					nodeName,
+					readErr,
+				)
+
+				continue
+			}
+
+			key := fmt.Sprintf("%s__%s", nodeName, fileName)
+			configMapData[key] = fileContent
+			nodeFileKeys = append(nodeFileKeys, key)
 
 			continue
 		}
 
-		fileName := filePath[strings.LastIndex(filePath, "/")+1:]
-		key := fmt.Sprintf("%s__%s", nodeName, fileName)
-		configMapData[key] = fileContent
+		// Store only the PVC archive path reference — no config content in the CM.
+		key := fmt.Sprintf("%s__%s__pvc-path", nodeName, fileName)
+		configMapData[key] = archivePath
 		nodeFileKeys = append(nodeFileKeys, key)
 	}
 
-	// If save failed and no pre-existing config files were found, report the save error.
-	if len(nodeFileKeys) == 0 && saveErr != nil {
-		return nil, fmt.Errorf("containerlab save failed and no config files found: %w", saveErr)
+	// If save failed and no config files were found, treat as a warning rather than an error —
+	// some node kinds (e.g. linux) do not support "containerlab save" and produce no files.
+	if len(nodeFileKeys) == 0 {
+		if saveErr != nil {
+			c.BaseController.Log.Warnf(
+				"containerlab save produced no files for node %q (node kind may not support save): %s",
+				nodeName,
+				saveErr,
+			)
+		}
+
+		return nodeFileKeys, nil
 	}
 
 	return nodeFileKeys, nil
+}
+
+// archiveFileInPVC copies a saved config file into two locations inside the startup-cfg PVC:
+//  1. The live path (/clabernetes/startup-cfg/startup-config) so the next launcher restart
+//     picks up the latest running config.
+//  2. An archive path (/clabernetes/startup-cfg/archive/<snapshotName>/<fileName>) for
+//     point-in-time history without consuming ConfigMap space.
+//
+// Returns the archive path on success. Best-effort — caller falls back to CM on error.
+func (c *Controller) archiveFileInPVC(
+	ctx context.Context,
+	namespace, podName, containerName, nodeName, snapshotName, srcPath, fileName string,
+) (string, error) {
+	archiveDir := fmt.Sprintf(
+		"%s/archive/%s",
+		clabernetesconstants.StartupConfigPVCMountPath,
+		snapshotName,
+	)
+
+	archivePath := fmt.Sprintf("%s/%s", archiveDir, fileName)
+
+	liveConfigPath := fmt.Sprintf(
+		"%s/%s",
+		clabernetesconstants.StartupConfigPVCMountPath,
+		clabernetesconstants.StartupConfigFileName,
+	)
+
+	// Only proceed if the PVC mount exists.
+	archiveCmd := fmt.Sprintf(
+		"if [ -d '%s' ]; then "+
+			"mkdir -p '%s' && "+
+			"cp '%s' '%s' && "+
+			"cp '%s' '%s' && "+
+			"echo '%s'; fi",
+		clabernetesconstants.StartupConfigPVCMountPath,
+		archiveDir,
+		srcPath, archivePath,
+		srcPath, liveConfigPath,
+		archivePath,
+	)
+
+	out, err := c.execInPod(
+		ctx,
+		namespace,
+		podName,
+		containerName,
+		[]string{"sh", "-c", archiveCmd},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	result := strings.TrimSpace(out)
+	if result == "" {
+		// PVC not mounted for this node — no startup-config PVC, skip silently.
+		return "", fmt.Errorf("startup-cfg PVC not mounted for node %q", nodeName)
+	}
+
+	c.BaseController.Log.Infof(
+		"snapshot %q: archived config for node %q → live: %q, archive: %q",
+		snapshotName,
+		nodeName,
+		liveConfigPath,
+		archivePath,
+	)
+
+	return result, nil
 }
 
 func (c *Controller) finalizeSnapshot(

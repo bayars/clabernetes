@@ -31,10 +31,12 @@ type bootstrapConfig struct {
 	criSockOverride             string
 	criKindOverride             string
 	naming                      string
-	containerlabVersion         string
-	containerlabExtraArgs       []string
-	extraEnv                    []k8scorev1.EnvVar
-	extraContainers             []k8scorev1.Container
+	containerlabVersion           string
+	containerlabExtraArgs         []string
+	extraEnv                      []k8scorev1.EnvVar
+	extraContainers               []k8scorev1.Container
+	startupConfigPVCSize          string
+	startupConfigStorageClassName string
 }
 
 func bootstrapFromConfigMap( //nolint:gocyclo,funlen,gocognit
@@ -192,6 +194,16 @@ func bootstrapFromConfigMap( //nolint:gocyclo,funlen,gocognit
 		}
 	}
 
+	startupConfigPVCSize, startupConfigPVCSizeOk := inMap["startupConfigPVCSize"]
+	if startupConfigPVCSizeOk {
+		bc.startupConfigPVCSize = startupConfigPVCSize
+	}
+
+	startupConfigStorageClassName, startupConfigStorageClassNameOk := inMap["startupConfigStorageClassName"]
+	if startupConfigStorageClassNameOk {
+		bc.startupConfigStorageClassName = startupConfigStorageClassName
+	}
+
 	var err error
 
 	if len(outErrors) > 0 {
@@ -339,6 +351,14 @@ func mergeFromBootstrapConfigMerge( //nolint:gocyclo
 	if len(config.Spec.Deployment.ExtraContainers) == 0 {
 		config.Spec.Deployment.ExtraContainers = bootstrap.extraContainers
 	}
+
+	if config.Spec.Deployment.StartupConfigPVCSize == "" {
+		config.Spec.Deployment.StartupConfigPVCSize = bootstrap.startupConfigPVCSize
+	}
+
+	if config.Spec.Deployment.StartupConfigStorageClassName == "" {
+		config.Spec.Deployment.StartupConfigStorageClassName = bootstrap.startupConfigStorageClassName
+	}
 }
 
 func mergeFromBootstrapConfigReplace(
@@ -365,10 +385,12 @@ func mergeFromBootstrapConfigReplace(
 			LauncherImage:               bootstrap.launcherImage,
 			LauncherImagePullPolicy:     bootstrap.launcherImagePullPolicy,
 			LauncherLogLevel:            bootstrap.launcherLogLevel,
-			ContainerlabVersion:         bootstrap.containerlabVersion,
-			ContainerlabExtraArgs:       bootstrap.containerlabExtraArgs,
-			ExtraEnv:                    bootstrap.extraEnv,
-			ExtraContainers:             bootstrap.extraContainers,
+			ContainerlabVersion:           bootstrap.containerlabVersion,
+			ContainerlabExtraArgs:         bootstrap.containerlabExtraArgs,
+			ExtraEnv:                      bootstrap.extraEnv,
+			ExtraContainers:               bootstrap.extraContainers,
+			StartupConfigPVCSize:          bootstrap.startupConfigPVCSize,
+			StartupConfigStorageClassName: bootstrap.startupConfigStorageClassName,
 		},
 		Naming: bootstrap.naming,
 	}

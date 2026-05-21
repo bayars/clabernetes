@@ -144,3 +144,11 @@ func (f fakeManager) GetContainerlabVersion() string {
 func (f fakeManager) GetContainerlabExtraArgs() []string {
 	return nil
 }
+
+func (f fakeManager) GetStartupConfigPVCSize() string {
+	return ""
+}
+
+func (f fakeManager) GetStartupConfigStorageClassName() string {
+	return ""
+}

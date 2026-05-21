@@ -59,6 +59,11 @@ const (
 	// that permanently stores the startup-config for the launcher.
 	StartupConfigPVCSuffix = "startup-cfg"
 
+	// NodePersistencePVCRole is the LabelTopologyRole value stamped on regular (node-persistence)
+	// PVCs so that the PVC reconciler can filter them out from startup-config PVCs, which share
+	// the same LabelTopologyOwner and LabelTopologyNode labels.
+	NodePersistencePVCRole = "node"
+
 	// StartupConfigPVCDefaultSize is the default PVC size for per-node startup config PVCs.
 	StartupConfigPVCDefaultSize = "50Mi"
 

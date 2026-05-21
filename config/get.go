@@ -190,3 +190,17 @@ func (m *manager) GetContainerlabExtraArgs() []string {
 
 	return m.config.Deployment.ContainerlabExtraArgs
 }
+
+func (m *manager) GetStartupConfigPVCSize() string {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	return m.config.Deployment.StartupConfigPVCSize
+}
+
+func (m *manager) GetStartupConfigStorageClassName() string {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	return m.config.Deployment.StartupConfigStorageClassName
+}
