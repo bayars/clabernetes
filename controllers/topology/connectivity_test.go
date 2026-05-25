@@ -20,6 +20,7 @@ func TestRenderConnectivity(t *testing.T) {
 		name           string
 		owningTopology *clabernetesapisv1alpha1.Topology
 		tunnels        map[string][]*clabernetesapisv1alpha1.PointToPointTunnel
+		allNodeNames   []string
 	}{
 		{
 			name: "simple-no-tunnels",
@@ -41,6 +42,7 @@ func TestRenderConnectivity(t *testing.T) {
 					},
 				},
 			},
+			allNodeNames: []string{"srl1"},
 		},
 		{
 			name: "simple",
@@ -84,6 +86,7 @@ func TestRenderConnectivity(t *testing.T) {
 					},
 				},
 			},
+			allNodeNames: []string{"srl1", "srl2"},
 		},
 	}
 
@@ -101,6 +104,7 @@ func TestRenderConnectivity(t *testing.T) {
 				got := reconciler.Render(
 					testCase.owningTopology,
 					testCase.tunnels,
+					testCase.allNodeNames,
 				)
 
 				if *clabernetestesthelper.Update {

@@ -282,9 +282,15 @@ func (r *Reconciler) ReconcileConnectivity(
 		Name:      owningTopology.GetName(),
 	}
 
+	allNodeNames := make([]string, 0, len(reconcileData.ResolvedConfigs))
+	for nodeName := range reconcileData.ResolvedConfigs {
+		allNodeNames = append(allNodeNames, nodeName)
+	}
+
 	renderedConnectivity := r.connectivityReconciler.Render(
 		owningTopology,
 		reconcileData.ResolvedTunnels,
+		allNodeNames,
 	)
 
 	existingConnectivity := &clabernetesapisv1alpha1.Connectivity{}

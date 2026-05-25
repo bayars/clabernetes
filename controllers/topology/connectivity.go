@@ -32,10 +32,11 @@ func NewConnectivityReconciler(
 	}
 }
 
-// Render returns a rendered Connectivity cr for the given topology/tunnels.
+// Render returns a rendered Connectivity cr for the given topology/tunnels/nodes.
 func (r *ConnectivityReconciler) Render(
 	owningTopology *clabernetesapisv1alpha1.Topology,
 	tunnels map[string][]*clabernetesapisv1alpha1.PointToPointTunnel,
+	allNodeNames []string,
 ) *clabernetesapisv1alpha1.Connectivity {
 	owningTopologyName := owningTopology.GetName()
 
@@ -58,9 +59,29 @@ func (r *ConnectivityReconciler) Render(
 			Labels:      labels,
 		},
 		Spec: clabernetesapisv1alpha1.ConnectivitySpec{
+			AllNodes:            r.buildAllNodes(owningTopology, allNodeNames),
 			PointToPointTunnels: tunnels,
 		},
 	}
+}
+
+func (r *ConnectivityReconciler) buildAllNodes(
+	owningTopology *clabernetesapisv1alpha1.Topology,
+	allNodeNames []string,
+) map[string]string {
+	allNodes := make(map[string]string, len(allNodeNames))
+
+	for _, nodeName := range allNodeNames {
+		allNodes[nodeName] = resolveConnectivityDestination(
+			owningTopology.GetName(),
+			nodeName,
+			owningTopology.GetNamespace(),
+			ResolveTopologyRemovePrefix(owningTopology),
+			r.configManagerGetter,
+		)
+	}
+
+	return allNodes
 }
 
 // Conforms checks if the existing connectivity cr conforms to the rendered expectation.

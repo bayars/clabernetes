@@ -19,12 +19,83 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	sigsyaml "sigs.k8s.io/yaml"
 )
 
 const (
 	exposeTypeNone     = "None"
 	exposeTypeHeadless = "Headless"
 )
+
+// nodeExposeOverride holds per-node expose service overrides sourced from node labels injected
+// by clabverter for utility nodes.
+type nodeExposeOverride struct {
+	exposeType        string
+	disableAutoExpose bool
+	ports             []k8scorev1.ServicePort
+	annotations       map[string]string
+}
+
+// getNodeExposeOverride reads utility-node expose labels from the reconcile data and returns the
+// corresponding override struct. Returns an empty struct for regular (non-utility) nodes.
+func getNodeExposeOverride(
+	nodeName string,
+	clabernetesConfigs map[string]*clabernetesutilcontainerlab.Config,
+) nodeExposeOverride {
+	cfg, ok := clabernetesConfigs[nodeName]
+	if !ok || cfg == nil || cfg.Topology == nil || cfg.Topology.Nodes == nil {
+		return nodeExposeOverride{}
+	}
+
+	nodeDef, ok := cfg.Topology.Nodes[nodeName]
+	if !ok || nodeDef == nil || len(nodeDef.Labels) == 0 {
+		return nodeExposeOverride{}
+	}
+
+	labels := nodeDef.Labels
+
+	override := nodeExposeOverride{
+		exposeType: labels[clabernetesconstants.LabelUtilityExposeType],
+	}
+
+	if labels[clabernetesconstants.LabelUtilityDisableAutoExpose] == clabernetesconstants.True {
+		override.disableAutoExpose = true
+	}
+
+	if portStr, ok := labels[clabernetesconstants.LabelUtilityExposePorts]; ok && portStr != "" {
+		for token := range strings.SplitSeq(portStr, ",") {
+			parts := strings.SplitN(token, "/", 2)
+			if len(parts) != 2 {
+				continue
+			}
+
+			var portNum int32
+
+			_, err := fmt.Sscanf(parts[0], "%d", &portNum)
+			if err != nil {
+				continue
+			}
+
+			proto := k8scorev1.Protocol(strings.ToUpper(parts[1]))
+
+			override.ports = append(override.ports, k8scorev1.ServicePort{
+				Name:       fmt.Sprintf("port-%d-%s", portNum, strings.ToLower(parts[1])),
+				Protocol:   proto,
+				Port:       portNum,
+				TargetPort: intstr.IntOrString{IntVal: portNum},
+			})
+		}
+	}
+
+	if annotStr, ok := labels[clabernetesconstants.LabelUtilityExposeAnnotations]; ok && annotStr != "" {
+		annots := make(map[string]string)
+		if err := sigsyaml.Unmarshal([]byte(annotStr), &annots); err == nil {
+			override.annotations = annots
+		}
+	}
+
+	return override
+}
 
 func exposeTypeToServiceType(exposeType string) k8scorev1.ServiceType {
 	switch exposeType {
@@ -107,6 +178,12 @@ func (r *ServiceExposeReconciler) Resolve(
 			continue
 		}
 
+		// per-node utility override: if the node's expose type is "None", skip it entirely
+		nodeOverride := getNodeExposeOverride(nodeName, clabernetesConfigs)
+		if nodeOverride.exposeType == exposeTypeNone {
+			continue
+		}
+
 		// if disable auto expose is true *and* there are no ports defined for the node *and*
 		// there are no default ports defined for the topology we can skip the node from an expose
 		// perspective.
@@ -160,6 +237,20 @@ func (r *ServiceExposeReconciler) Render(
 		nodeName,
 	)
 
+	nodeOverride := getNodeExposeOverride(nodeName, reconcileData.ResolvedConfigs)
+
+	if nodeOverride.exposeType != "" {
+		service.Spec.Type = exposeTypeToServiceType(nodeOverride.exposeType)
+	}
+
+	if len(nodeOverride.annotations) > 0 {
+		if service.Annotations == nil {
+			service.Annotations = make(map[string]string)
+		}
+
+		maps.Copy(service.Annotations, nodeOverride.annotations)
+	}
+
 	r.processMgmtLoadbalanacerExpose(
 		owningTopology,
 		reconcileData, service, nodeName)
@@ -168,6 +259,7 @@ func (r *ServiceExposeReconciler) Render(
 		reconcileData,
 		service,
 		nodeName,
+		nodeOverride,
 	)
 
 	return service
@@ -290,10 +382,32 @@ func (r *ServiceExposeReconciler) renderServicePorts(
 	reconcileData *ReconcileData,
 	service *k8scorev1.Service,
 	nodeName string,
+	override nodeExposeOverride,
 ) {
 	reconcileData.ResolvedExposedPorts[nodeName] = &clabernetesapisv1alpha1.ExposedPorts{
 		TCPPorts: make([]int, 0),
 		UDPPorts: make([]int, 0),
+	}
+
+	// utility-node override: use explicitly declared ports and skip auto-discovery
+	if len(override.ports) > 0 || override.disableAutoExpose {
+		for _, port := range override.ports {
+			if port.Protocol == clabernetesconstants.TCP {
+				reconcileData.ResolvedExposedPorts[nodeName].TCPPorts = append(
+					reconcileData.ResolvedExposedPorts[nodeName].TCPPorts,
+					int(port.Port),
+				)
+			} else {
+				reconcileData.ResolvedExposedPorts[nodeName].UDPPorts = append(
+					reconcileData.ResolvedExposedPorts[nodeName].UDPPorts,
+					int(port.Port),
+				)
+			}
+		}
+
+		service.Spec.Ports = override.ports
+
+		return
 	}
 
 	ports := make([]k8scorev1.ServicePort, 0)
