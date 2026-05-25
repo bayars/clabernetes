@@ -72,6 +72,27 @@ const (
 )
 
 const (
+	// LabelUtilityNode marks a containerlab node as a clabverter-injected utility node.
+	LabelUtilityNode = "clabernetes/utilityNode"
+
+	// LabelUtilityExposeType overrides the expose service type for a utility node.
+	// Valid values: "None", "ClusterIP", "LoadBalancer".
+	LabelUtilityExposeType = "clabernetes/utilityExposeType"
+
+	// LabelUtilityDisableAutoExpose when "true" disables auto-expose port discovery for a utility
+	// node so only explicitly declared ports are included in the expose service.
+	LabelUtilityDisableAutoExpose = "clabernetes/utilityDisableAutoExpose"
+
+	// LabelUtilityExposePorts holds a comma-separated list of ports to expose for a utility node,
+	// in the format "<port>/<protocol>" (e.g. "1194/UDP,8080/TCP").
+	LabelUtilityExposePorts = "clabernetes/utilityExposePorts"
+
+	// LabelUtilityExposeAnnotations holds a JSON-encoded map of annotations to merge into the
+	// expose service for a utility node (e.g. GKE static IP name annotation).
+	LabelUtilityExposeAnnotations = "clabernetes/utilityExposeAnnotations"
+)
+
+const (
 	// AnnotationSnapshotRequested is set to "true" on a Topology to trigger a snapshot.
 	// The controller will create a Snapshot CR + ConfigMap, then remove this annotation.
 	AnnotationSnapshotRequested = "clabernetes/snapshotRequested"
