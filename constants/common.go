@@ -25,6 +25,11 @@ const (
 	// VXLANServicePort is the port number for vxlan that we use in the kubernetes service.
 	VXLANServicePort = 14789
 
+	// MgmtBridgeVNID is the VXLAN Network Identifier used for the management bridge segment that
+	// connects all launcher pods' containerlab management bridges into a single L2 domain. This
+	// value sits just above the point-to-point tunnel VNID range (1–15,999,999).
+	MgmtBridgeVNID = 16_000_000
+
 	// SlurpeethServicePort is the port number for slurpeeth that we use in the kubernetes service.
 	SlurpeethServicePort = 4799
 

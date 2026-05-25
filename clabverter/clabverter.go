@@ -92,6 +92,11 @@ type Clabverter struct {
 	// from. When set, filesFromConfigMap entries are pre-populated in the rendered Topology
 	// manifest for each node that has saved configs in the snapshot.
 	fromSnapshot string
+
+	// utilityManifestFile is the path to the optional utility manifest YAML file.
+	utilityManifestFile     string
+	utilityManifestFilePath string
+	utilityManifest         *UtilityManifest
 }
 
 // MustNewClabverter returns an instance of Clabverter or panics.
@@ -109,6 +114,7 @@ func MustNewClabverter(
 	quiet,
 	stdout bool,
 	fromSnapshot string,
+	utilityManifestFile string,
 ) *Clabverter {
 	logLevel := clabernetesconstants.Info
 
@@ -177,6 +183,7 @@ func MustNewClabverter(
 		containerlabVersion:     containerlabVersion,
 		renderedFiles:           []renderedContent{},
 		fromSnapshot:            fromSnapshot,
+		utilityManifestFile:     utilityManifestFile,
 	}
 }
 
@@ -209,6 +216,16 @@ func (c *Clabverter) Clabvert() error {
 	}
 
 	err = c.load()
+	if err != nil {
+		return err
+	}
+
+	err = c.loadUtilityManifest()
+	if err != nil {
+		return err
+	}
+
+	err = c.injectUtilityNodes()
 	if err != nil {
 		return err
 	}

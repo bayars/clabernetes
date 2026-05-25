@@ -33,21 +33,23 @@ func (c *clabernetes) connectivity() {
 	connectivityManager.Run()
 }
 
-func (c *clabernetes) getTunnels() ([]*clabernetesapisv1alpha1.PointToPointTunnel, error) {
-	nodeName := os.Getenv(clabernetesconstants.LauncherNodeNameEnv)
-
+func (c *clabernetes) getConnectivityCR() (*clabernetesapisv1alpha1.Connectivity, error) {
 	ctx, cancel := context.WithTimeout(c.ctx, clientDefaultTimeout)
 	defer cancel()
 
-	tunnelsCR, err := c.kubeClabernetesClient.ClabernetesV1alpha1().Connectivities(
+	return c.kubeClabernetesClient.ClabernetesV1alpha1().Connectivities(
 		os.Getenv(clabernetesconstants.PodNamespaceEnv),
 	).Get(
 		ctx,
-		os.Getenv(
-			clabernetesconstants.LauncherTopologyNameEnv,
-		),
+		os.Getenv(clabernetesconstants.LauncherTopologyNameEnv),
 		metav1.GetOptions{},
 	)
+}
+
+func (c *clabernetes) getTunnels() ([]*clabernetesapisv1alpha1.PointToPointTunnel, error) {
+	nodeName := os.Getenv(clabernetesconstants.LauncherNodeNameEnv)
+
+	tunnelsCR, err := c.getConnectivityCR()
 	if err != nil {
 		return nil, err
 	}
@@ -61,4 +63,13 @@ func (c *clabernetes) getTunnels() ([]*clabernetesapisv1alpha1.PointToPointTunne
 	}
 
 	return nodeTunnels, nil
+}
+
+func (c *clabernetes) getAllNodes() (map[string]string, error) {
+	tunnelsCR, err := c.getConnectivityCR()
+	if err != nil {
+		return nil, err
+	}
+
+	return tunnelsCR.Spec.AllNodes, nil
 }

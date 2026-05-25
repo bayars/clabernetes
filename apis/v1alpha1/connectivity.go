@@ -20,6 +20,11 @@ type Connectivity struct {
 
 // ConnectivitySpec is the spec for a Connectivity resource.
 type ConnectivitySpec struct {
+	// AllNodes maps every node name in the topology to its fabric (vx) service DNS name. This
+	// includes nodes that have no point-to-point data links, such as clabverter-injected utility
+	// nodes. The launcher uses this map to establish the management bridge VXLAN segment that
+	// connects all pods' containerlab management bridges into a single L2 domain.
+	AllNodes map[string]string `json:"allNodes,omitempty"`
 	// PointToPointTunnels holds point-to-point connectivity information for a given topology. The
 	// mapping is nodeName (i.e. srl1) -> p2p tunnel data. Both sides of the tunnel should be able
 	// to use this information to establish connectivity between Topology nodes.
