@@ -115,6 +115,7 @@ func (c *clabernetes) startup() {
 	c.setup()
 	c.image()
 	c.launch()
+	c.mgmtBridge()
 	c.connectivity()
 
 	go c.imageCleanup()

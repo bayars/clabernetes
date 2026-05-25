@@ -11,6 +11,9 @@
         }
     },
     "spec": {
+        "allNodes": {
+            "srl1": "render-rolebinding-test-srl1-vx.clabernetes.svc.cluster.local"
+        },
         "pointToPointTunnels": null
     },
     "status": {}
