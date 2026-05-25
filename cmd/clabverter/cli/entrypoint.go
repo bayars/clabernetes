@@ -21,6 +21,7 @@ const (
 	quiet                = "quiet"
 	stdout               = "stdout"
 	fromSnapshot         = "fromSnapshot"
+	utilityManifest      = "utilityManifest"
 )
 
 // Entrypoint returns the clabernetes clabverter entrypoint.
@@ -116,6 +117,14 @@ func Entrypoint() *cli.App {
 				Required: false,
 				Value:    "",
 			},
+			&cli.StringFlag{
+				Name: utilityManifest,
+				Usage: "path to a utility manifest YAML file whose nodes (e.g. vpn, robot) are" +
+					" injected into the converted topology as regular containerlab linux nodes" +
+					" with auto-assigned mgmt-ipv4 addresses",
+				Required: false,
+				Value:    "",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			err := clabernetesclabverter.MustNewClabverter(
@@ -132,6 +141,7 @@ func Entrypoint() *cli.App {
 				c.Bool(quiet),
 				c.Bool(stdout),
 				c.String(fromSnapshot),
+				c.String(utilityManifest),
 			).Clabvert()
 
 			claberneteslogging.GetManager().Flush()
