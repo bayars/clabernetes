@@ -165,8 +165,14 @@ func (c *Clabverter) handleStartupConfigs() error {
 			}
 		}
 
-		if len(startupConfigContents) > maxBytesForConfigMap {
-			panic("STARTUP CONFIG TOO LARGE, REMOTE STARTUP CONFIG NOT IMPLEMENTED YET")
+		if len(startupConfigContents) > clabernetesconstants.MaxConfigMapDataBytes {
+			return fmt.Errorf(
+				"startup-config for node %q is %d bytes which exceeds the %d byte seed ConfigMap "+
+					"limit; reduce the config size or host it externally and reference it via a URL",
+				nodeName,
+				len(startupConfigContents),
+				clabernetesconstants.MaxConfigMapDataBytes,
+			)
 		}
 
 		startupConfigs[nodeName] = startupConfigContents
@@ -527,7 +533,7 @@ func (c *Clabverter) handleExtraFiles() error {
 				return err
 			}
 
-			if len(extraFileContent) > maxBytesForConfigMap {
+			if len(extraFileContent) > clabernetesconstants.MaxConfigMapDataBytes {
 				c.handleExtraFileTooLarge(nodeName, extraFilePath)
 			} else {
 				extraFiles[nodeName][extraFilePath.sourcePath] = extraFile{

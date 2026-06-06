@@ -15,7 +15,8 @@ type Config struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec   ConfigSpec   `json:"spec,omitzero"`
+	Spec ConfigSpec `json:"spec,omitzero"`
+	// +optional
 	Status ConfigStatus `json:"status,omitzero"`
 }
 

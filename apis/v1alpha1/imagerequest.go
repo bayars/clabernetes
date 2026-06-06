@@ -13,7 +13,8 @@ type ImageRequest struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitzero"`
 
-	Spec   ImageRequestSpec   `json:"spec,omitzero"`
+	Spec ImageRequestSpec `json:"spec,omitzero"`
+	// +optional
 	Status ImageRequestStatus `json:"status,omitzero"`
 }
 

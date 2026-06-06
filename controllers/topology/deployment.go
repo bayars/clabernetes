@@ -114,6 +114,7 @@ func (r *DeploymentReconciler) Render(
 	owningTopology *clabernetesapisv1alpha1.Topology,
 	clabernetesConfigs map[string]*clabernetesutilcontainerlab.Config,
 	nodeName string,
+	reconcileData *ReconcileData,
 ) *k8sappsv1.Deployment {
 	owningTopologyName := owningTopology.GetName()
 
@@ -208,6 +209,13 @@ func (r *DeploymentReconciler) Render(
 		owningTopology,
 	)
 
+	r.renderDeploymentStartupConfig(
+		deployment,
+		nodeName,
+		owningTopologyName,
+		reconcileData,
+	)
+
 	return deployment
 }
 
@@ -217,6 +225,7 @@ func (r *DeploymentReconciler) RenderAll(
 	owningTopology *clabernetesapisv1alpha1.Topology,
 	clabernetesConfigs map[string]*clabernetesutilcontainerlab.Config,
 	nodeNames []string,
+	reconcileData *ReconcileData,
 ) []*k8sappsv1.Deployment {
 	deployments := make([]*k8sappsv1.Deployment, len(nodeNames))
 
@@ -225,6 +234,7 @@ func (r *DeploymentReconciler) RenderAll(
 			owningTopology,
 			clabernetesConfigs,
 			nodeName,
+			reconcileData,
 		)
 	}
 
@@ -1399,4 +1409,72 @@ func determineNodeNeedsRestart(
 
 		return
 	}
+}
+
+func (r *DeploymentReconciler) renderDeploymentStartupConfig(
+	deployment *k8sappsv1.Deployment,
+	nodeName,
+	owningTopologyName string,
+	reconcileData *ReconcileData,
+) {
+	if !reconcileData.NodesWithStartupConfigPVC.Contains(nodeName) {
+		return
+	}
+
+	pvcVolumeName := StartupConfigPVCVolumeName(owningTopologyName, nodeName)
+	seedCMVolumeName := StartupConfigSeedCMVolumeName(owningTopologyName, nodeName)
+
+	safeNodeName := clabernetesutilkubernetes.EnforceDNSLabelConvention(nodeName)
+
+	pvcClaimName := clabernetesutilkubernetes.SafeConcatNameKubernetes(
+		owningTopologyName,
+		safeNodeName,
+		clabernetesconstants.StartupConfigPVCSuffix,
+	)
+
+	seedCMName := clabernetesutilkubernetes.SafeConcatNameKubernetes(
+		owningTopologyName,
+		safeNodeName,
+		clabernetesconstants.StartupConfigSeedCMSuffix,
+	)
+
+	deployment.Spec.Template.Spec.Volumes = append(
+		deployment.Spec.Template.Spec.Volumes,
+		k8scorev1.Volume{
+			Name: pvcVolumeName,
+			VolumeSource: k8scorev1.VolumeSource{
+				PersistentVolumeClaim: &k8scorev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvcClaimName,
+					ReadOnly:  false,
+				},
+			},
+		},
+		k8scorev1.Volume{
+			Name: seedCMVolumeName,
+			VolumeSource: k8scorev1.VolumeSource{
+				ConfigMap: &k8scorev1.ConfigMapVolumeSource{
+					LocalObjectReference: k8scorev1.LocalObjectReference{
+						Name: seedCMName,
+					},
+					DefaultMode: clabernetesutil.ToPointer(
+						int32(clabernetesconstants.PermissionsEveryoneReadWriteOwnerExecute),
+					),
+				},
+			},
+		},
+	)
+
+	deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+		deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
+		k8scorev1.VolumeMount{
+			Name:      pvcVolumeName,
+			ReadOnly:  false,
+			MountPath: clabernetesconstants.StartupConfigPVCMountPath,
+		},
+		k8scorev1.VolumeMount{
+			Name:      seedCMVolumeName,
+			ReadOnly:  true,
+			MountPath: clabernetesconstants.StartupConfigSeedMountPath,
+		},
+	)
 }

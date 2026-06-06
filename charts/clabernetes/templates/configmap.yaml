@@ -70,4 +70,10 @@ data:
   extraContainers: |-
 {{ .Values.globalConfig.deployment.extraContainers | toYaml | indent 4 }}
   {{- end }}
+  {{- if .Values.globalConfig.deployment.startupConfigPVCSize }}
+  startupConfigPVCSize: {{ .Values.globalConfig.deployment.startupConfigPVCSize }}
+  {{- end }}
+  {{- if .Values.globalConfig.deployment.startupConfigStorageClassName }}
+  startupConfigStorageClassName: {{ .Values.globalConfig.deployment.startupConfigStorageClassName }}
+  {{- end }}
 {{- end }}

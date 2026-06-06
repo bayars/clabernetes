@@ -32,6 +32,10 @@ type ReconcileData struct {
 
 	NodesNeedingReboot clabernetesutil.StringSet
 
+	// NodesWithStartupConfigPVC tracks which nodes have a startup config delivered via PVC.
+	// The deployment renderer uses this to add the seed CM and PVC volumes/mounts.
+	NodesWithStartupConfigPVC clabernetesutil.StringSet
+
 	ShouldUpdateResource bool
 }
 
@@ -57,7 +61,8 @@ func NewReconcileData(
 		PreviousNodeStatuses: owningTopology.Status.NodeReadiness,
 		NodeStatuses:         make(map[string]string),
 		NodeProbeStatuses:    make(map[string]clabernetesapisv1alpha1.NodeProbeStatuses),
-		NodesNeedingReboot:   clabernetesutil.NewStringSet(),
+		NodesNeedingReboot:         clabernetesutil.NewStringSet(),
+		NodesWithStartupConfigPVC:  clabernetesutil.NewStringSet(),
 	}
 
 	for nodeName, nodeConfig := range status.Configs {

@@ -44,6 +44,7 @@ type Reconciler struct {
 	ServiceFabricReconciler         *ServiceFabricReconciler
 	ServiceExposeReconciler         *ServiceExposeReconciler
 	PersistentVolumeClaimReconciler *PersistentVolumeClaimReconciler
+	StartupConfigReconciler         *StartupConfigReconciler
 	DeploymentReconciler            *DeploymentReconciler
 }
 
@@ -87,6 +88,10 @@ func NewReconciler(
 			configManagerGetter,
 		),
 		PersistentVolumeClaimReconciler: NewPersistentVolumeClaimReconciler(
+			log,
+			configManagerGetter,
+		),
+		StartupConfigReconciler: NewStartupConfigReconciler(
 			log,
 			configManagerGetter,
 		),
@@ -668,6 +673,154 @@ func (r *Reconciler) ReconcilePersistentVolumeClaim(
 	return nil
 }
 
+// ReconcileStartupConfigs reconciles per-node seed ConfigMaps and startup-config PVCs for all
+// nodes in the topology that have a startup-config defined. It also mutates ResolvedConfigs to
+// replace inline startup-config content with the PVC mount path, so that the main ConfigMap only
+// stores a file-path reference (not the raw content).
+func (r *Reconciler) ReconcileStartupConfigs(
+	ctx context.Context,
+	owningTopology *clabernetesapisv1alpha1.Topology,
+	reconcileData *ReconcileData,
+) error {
+	const seedCMTypeName = "startup-config seed configmap"
+	const startupPVCTypeName = "startup-config pvc"
+
+	// ---- seed ConfigMaps ----
+	seedCMs, err := ReconcileResolve(
+		ctx,
+		r,
+		&k8scorev1.ConfigMap{},
+		&k8scorev1.ConfigMapList{},
+		seedCMTypeName,
+		owningTopology,
+		reconcileData.ResolvedConfigs,
+		r.StartupConfigReconciler.ResolveSeedCMs,
+	)
+	if err != nil {
+		return err
+	}
+
+	r.Log.Info("pruning extraneous startup-config seed configmaps")
+
+	for _, extra := range seedCMs.Extra {
+		err = r.deleteObj(ctx, extra, seedCMTypeName)
+		if err != nil {
+			return err
+		}
+	}
+
+	r.Log.Info("creating missing startup-config seed configmaps")
+
+	for _, missingNodeName := range seedCMs.Missing {
+		content := reconcileData.ResolvedConfigs[missingNodeName].Topology.GetNodeStartupConfig(
+			missingNodeName,
+		)
+
+		rendered := r.StartupConfigReconciler.RenderSeedCM(owningTopology, missingNodeName, content)
+
+		err = r.createObj(ctx, owningTopology, rendered, seedCMTypeName)
+		if err != nil {
+			return err
+		}
+	}
+
+	r.Log.Info("enforcing desired state on existing startup-config seed configmaps")
+
+	for nodeName, existing := range seedCMs.Current {
+		content := reconcileData.ResolvedConfigs[nodeName].Topology.GetNodeStartupConfig(nodeName)
+
+		rendered := r.StartupConfigReconciler.RenderSeedCM(owningTopology, nodeName, content)
+
+		err = ctrlruntimeutil.SetOwnerReference(owningTopology, rendered, r.Client.Scheme())
+		if err != nil {
+			return err
+		}
+
+		if !r.StartupConfigReconciler.ConformsSeedCM(existing, rendered, owningTopology.GetUID()) {
+			err = r.updateObj(ctx, rendered, seedCMTypeName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// ---- startup-config PVCs ----
+	startupPVCs, err := ReconcileResolve(
+		ctx,
+		r,
+		&k8scorev1.PersistentVolumeClaim{},
+		&k8scorev1.PersistentVolumeClaimList{},
+		startupPVCTypeName,
+		owningTopology,
+		reconcileData.ResolvedConfigs,
+		r.StartupConfigReconciler.ResolvePVCs,
+	)
+	if err != nil {
+		return err
+	}
+
+	r.Log.Info("pruning extraneous startup-config pvcs")
+
+	for _, extra := range startupPVCs.Extra {
+		err = r.deleteObj(ctx, extra, startupPVCTypeName)
+		if err != nil {
+			return err
+		}
+	}
+
+	r.Log.Info("creating missing startup-config pvcs")
+
+	for _, missingNodeName := range startupPVCs.Missing {
+		rendered := r.StartupConfigReconciler.RenderStartupPVC(owningTopology, missingNodeName, nil)
+
+		err = r.createObj(ctx, owningTopology, rendered, startupPVCTypeName)
+		if err != nil {
+			return err
+		}
+	}
+
+	r.Log.Info("enforcing desired state on existing startup-config pvcs")
+
+	for nodeName, existing := range startupPVCs.Current {
+		rendered := r.StartupConfigReconciler.RenderStartupPVC(owningTopology, nodeName, existing)
+
+		err = ctrlruntimeutil.SetOwnerReference(owningTopology, rendered, r.Client.Scheme())
+		if err != nil {
+			return err
+		}
+
+		if !r.StartupConfigReconciler.ConformsStartupPVC(
+			existing, rendered, owningTopology.GetUID(),
+		) {
+			err = r.updateObj(ctx, rendered, startupPVCTypeName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// ---- mutate ResolvedConfigs: replace inline startup-config with PVC path ----
+	// This must happen before ReconcileConfigMap renders the main ConfigMap so that the main
+	// ConfigMap stores a file-path reference only, not the raw content.
+	for nodeName, cfg := range reconcileData.ResolvedConfigs {
+		if cfg.Topology.GetNodeStartupConfig(nodeName) == "" {
+			continue
+		}
+
+		reconcileData.NodesWithStartupConfigPVC.Add(nodeName)
+
+		pvcPath := fmt.Sprintf(
+			"%s/%s",
+			clabernetesconstants.StartupConfigPVCMountPath,
+			clabernetesconstants.StartupConfigFileName,
+		)
+
+		cfg.Topology.Nodes[nodeName].StartupConfig = pvcPath
+	}
+
+	return nil
+}
+
 // ReconcileDeployments reconciles the deployments that make up a clabernetes Topology.
 func (r *Reconciler) ReconcileDeployments( //nolint: gocyclo,gocognit,funlen
 	ctx context.Context,
@@ -718,6 +871,7 @@ func (r *Reconciler) ReconcileDeployments( //nolint: gocyclo,gocognit,funlen
 		owningTopology,
 		reconcileData.ResolvedConfigs,
 		deployments.Missing,
+		reconcileData,
 	)
 
 	for _, renderedMissingDeployment := range renderedMissingDeployments {
@@ -739,6 +893,7 @@ func (r *Reconciler) ReconcileDeployments( //nolint: gocyclo,gocognit,funlen
 			owningTopology,
 			reconcileData.ResolvedConfigs,
 			existingCurrentDeploymentNodeName,
+			reconcileData,
 		)
 
 		err = ctrlruntimeutil.SetOwnerReference(

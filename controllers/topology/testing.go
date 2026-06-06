@@ -40,3 +40,12 @@ func NewTestController(
 		BaseController: base,
 	}
 }
+
+// NewReconcileDataForTest returns a minimal ReconcileData suitable for unit tests where only the
+// empty-set fields are needed (e.g. NodesWithStartupConfigPVC).
+func NewReconcileDataForTest() *ReconcileData {
+	return &ReconcileData{
+		NodesNeedingReboot:        clabernetesutil.NewStringSet(),
+		NodesWithStartupConfigPVC: clabernetesutil.NewStringSet(),
+	}
+}

@@ -110,6 +110,16 @@ type ConfigDeployment struct {
 	// +optional
 	// +listType=atomic
 	ExtraContainers []k8scorev1.Container `json:"extraContainers"`
+	// StartupConfigPVCSize is the global default size for per-node startup-config PVCs. Topology-
+	// level StartupConfigPVCSize overrides this. Must be a valid Kubernetes resource quantity
+	// string (e.g. "50Mi", "1Gi"). Defaults to the compiled-in constant when unset.
+	// +optional
+	StartupConfigPVCSize string `json:"startupConfigPVCSize,omitempty"`
+	// StartupConfigStorageClassName is the global default storage class name to use for per-node
+	// startup-config PVCs. Topology-level StartupConfigStorageClassName overrides this. When
+	// unset, the cluster's default storage class is used.
+	// +optional
+	StartupConfigStorageClassName string `json:"startupConfigStorageClassName,omitempty"`
 }
 
 // ConfigImagePull holds configurations relevant to how clabernetes launcher pods handle pulling
