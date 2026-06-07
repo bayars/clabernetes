@@ -9,7 +9,9 @@ import (
 
 	clabernetesapisv1alpha1 "github.com/srl-labs/clabernetes/apis/v1alpha1"
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
+	clabernetesutilcontainerlab "github.com/srl-labs/clabernetes/util/containerlab"
 	clabernetesutilkubernetes "github.com/srl-labs/clabernetes/util/kubernetes"
+	"gopkg.in/yaml.v3"
 	k8scorev1 "k8s.io/api/core/v1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,6 +89,13 @@ func (c *Controller) reconcileSnapshot(
 
 	if len(nodeNames) == 0 {
 		return c.failSnapshot(ctx, snapshot, "topology has no nodes in NodeReadiness status")
+	}
+
+	clabConfig := c.parseContainerlabTopology(topology)
+	nodeNames = c.filterSnapshotableNodes(nodeNames, snapshot.Spec.TopologyRef, clabConfig)
+
+	if len(nodeNames) == 0 {
+		return c.failSnapshot(ctx, snapshot, "topology has no snapshotable nodes (all nodes are unsupported kinds)")
 	}
 
 	configMapData, nodeConfigs, failedNodes := c.collectNodeSnapshots(
@@ -611,6 +620,67 @@ func (c *Controller) failSnapshot(
 	}
 
 	return ctrlruntime.Result{}, nil
+}
+
+// parseContainerlabTopology parses the raw containerlab topology YAML from the Topology spec.
+// Returns nil if the topology is not a containerlab type (e.g. KNE) or parsing fails.
+func (c *Controller) parseContainerlabTopology(
+	topology *clabernetesapisv1alpha1.Topology,
+) *clabernetesutilcontainerlab.Config {
+	raw := topology.Spec.Definition.Containerlab
+	if raw == "" {
+		return nil
+	}
+
+	clabConfig := &clabernetesutilcontainerlab.Config{}
+
+	if err := yaml.Unmarshal([]byte(raw), clabConfig); err != nil {
+		c.BaseController.Log.Warnf("failed parsing containerlab topology for kind filtering: %s", err)
+
+		return nil
+	}
+
+	if clabConfig.Topology == nil {
+		return clabConfig
+	}
+
+	if clabConfig.Topology.Defaults == nil {
+		clabConfig.Topology.Defaults = &clabernetesutilcontainerlab.NodeDefinition{}
+	}
+
+	return clabConfig
+}
+
+// filterSnapshotableNodes removes nodes whose containerlab kind does not support
+// `containerlab save` (e.g. "linux"). If clabConfig is nil the list is returned unchanged.
+func (c *Controller) filterSnapshotableNodes(
+	nodeNames []string,
+	topologyRef string,
+	clabConfig *clabernetesutilcontainerlab.Config,
+) []string {
+	if clabConfig == nil || clabConfig.Topology == nil {
+		return nodeNames
+	}
+
+	filtered := make([]string, 0, len(nodeNames))
+
+	for _, name := range nodeNames {
+		kind, _ := clabConfig.Topology.GetNodeKindType(name)
+		if kind == "linux" {
+			c.BaseController.Log.Debugf(
+				"skipping node %q in topology %q: kind %q does not support containerlab save",
+				name,
+				topologyRef,
+				kind,
+			)
+
+			continue
+		}
+
+		filtered = append(filtered, name)
+	}
+
+	return filtered
 }
 
 // execInPod executes a command in the specified container of a pod and returns stdout output.
