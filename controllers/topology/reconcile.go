@@ -93,6 +93,19 @@ func (c *Controller) Reconcile(
 
 		err = c.BaseController.Client.Update(ctx, topology)
 		if err != nil {
+			if apimachineryerrors.IsConflict(err) {
+				// Another reconcile loop updated the resource between our Get and Update; the
+				// resulting watch event will trigger a fresh reconcile with the latest version.
+				c.BaseController.Log.Debugf(
+					"conflict updating object '%s/%s', will re-reconcile from watch event: %s",
+					topology.Namespace,
+					topology.Name,
+					err,
+				)
+
+				return ctrlruntime.Result{}, nil
+			}
+
 			c.BaseController.Log.Criticalf(
 				"failed updating object '%s/%s' error: %s",
 				topology.Namespace,

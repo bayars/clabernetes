@@ -4,8 +4,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	clabernetesconstants "github.com/srl-labs/clabernetes/constants"
+)
+
+const (
+	seedFileWaitInterval = 2 * time.Second
+	seedFileWaitTimeout  = 30 * time.Second
 )
 
 // EnsureStartupConfig checks whether the startup-config PVC already has content. If not, and a
@@ -20,14 +26,18 @@ func (c *clabernetes) ensureStartupConfig() error {
 		clabernetesconstants.StartupConfigFileName,
 	)
 
-	seedPath := filepath.Join(
-		clabernetesconstants.StartupConfigSeedMountPath,
-		clabernetesconstants.StartupConfigFileName,
-	)
+	seedDir := clabernetesconstants.StartupConfigSeedMountPath
+	seedPath := filepath.Join(seedDir, clabernetesconstants.StartupConfigFileName)
 
-	// Check if the seed mount exists at all — if not, this node has no startup config.
-	if _, err := os.Stat(seedPath); os.IsNotExist(err) {
+	// If the seed mount directory doesn't exist, this node has no startup config.
+	if _, err := os.Stat(seedDir); os.IsNotExist(err) {
 		return nil
+	}
+
+	// The seed directory is mounted but the kubelet may not have synced the ConfigMap files yet
+	// (common on slower cloud nodes). Wait up to seedFileWaitTimeout for the file to appear.
+	if err := c.waitForSeedFile(seedPath); err != nil {
+		return err
 	}
 
 	// PVC already has content (e.g. updated by a snapshot) — leave it untouched.
@@ -44,6 +54,36 @@ func (c *clabernetes) ensureStartupConfig() error {
 	}
 
 	return copyFile(seedPath, pvcPath)
+}
+
+// waitForSeedFile waits until the seed startup-config file appears in the mounted ConfigMap
+// directory, retrying up to seedFileWaitTimeout. This handles the race between the container
+// starting and the kubelet finishing its ConfigMap volume sync (observed on GKE).
+func (c *clabernetes) waitForSeedFile(seedPath string) error {
+	deadline := time.Now().Add(seedFileWaitTimeout)
+
+	for {
+		if _, err := os.Stat(seedPath); err == nil {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			c.logger.Warnf(
+				"seed startup-config file %q not found after %s, assuming no startup config",
+				seedPath,
+				seedFileWaitTimeout,
+			)
+
+			return nil
+		}
+
+		c.logger.Debugf(
+			"waiting for seed startup-config file %q to appear (kubelet sync pending)...",
+			seedPath,
+		)
+
+		time.Sleep(seedFileWaitInterval)
+	}
 }
 
 func copyFile(src, dst string) error {
