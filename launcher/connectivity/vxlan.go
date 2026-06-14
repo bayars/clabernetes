@@ -164,7 +164,7 @@ func (m *vxlanManager) runContainerlabVxlanToolsCreate(
 		return err
 	}
 
-	return nil
+	return m.ensureTCFilters(localNodeName, cntLink)
 }
 
 func (m *vxlanManager) runContainerlabVxlanToolsDelete(
@@ -195,6 +195,58 @@ func (m *vxlanManager) runContainerlabVxlanToolsDelete(
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+// ensureTCFilters verifies that TC mirred redirect filters are installed on both the VxLAN
+// interface and the container-side veth after containerlab tools vxlan create. On some kernels
+// (e.g. GKE Container-Optimized OS) the act_mirred module is not auto-loaded, so the
+// "tc filter add ... action mirred" step inside containerlab may silently fail while the
+// command still exits 0. We detect this and install the filters directly.
+func (m *vxlanManager) ensureTCFilters(localNodeName, cntLink string) error {
+	sanitized := sanitizeInterfaceName(fmt.Sprintf("%s-%s", localNodeName, cntLink))
+	vxlanIface := "vx-" + sanitized
+	nodeIface := sanitized
+
+	// Check whether filters are already present on the VxLAN interface.
+	checkCmd := exec.CommandContext(m.ctx, "tc", "filter", "show", "dev", vxlanIface, "ingress") //nolint:gosec
+	out, err := checkCmd.Output()
+
+	if err == nil && strings.TrimSpace(string(out)) != "" {
+		// Filters already installed by containerlab — nothing to do.
+		return nil
+	}
+
+	m.logger.Warnf(
+		"TC redirect filters missing on '%s' after containerlab vxlan create, installing manually",
+		vxlanIface,
+	)
+
+	filterCmds := [][]string{
+		{"tc", "filter", "add", "dev", vxlanIface, "ingress", "matchall", "action", "mirred", "egress", "redirect", "dev", nodeIface},
+		{"tc", "filter", "add", "dev", nodeIface, "ingress", "matchall", "action", "mirred", "egress", "redirect", "dev", vxlanIface},
+	}
+
+	for _, args := range filterCmds {
+		filterCmd := exec.CommandContext(m.ctx, args[0], args[1:]...) //nolint:gosec
+		filterCmd.Stdout = m.logger
+		filterCmd.Stderr = m.logger
+
+		if err = filterCmd.Run(); err != nil {
+			return fmt.Errorf(
+				"installing TC mirred filter (%s): %w",
+				strings.Join(args, " "),
+				err,
+			)
+		}
+	}
+
+	m.logger.Infof(
+		"TC redirect filters manually installed: '%s' ↔ '%s'",
+		vxlanIface,
+		nodeIface,
+	)
 
 	return nil
 }
