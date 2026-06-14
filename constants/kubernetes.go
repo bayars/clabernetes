@@ -76,8 +76,4 @@ const (
 	// StartupConfigFileName is the key/filename used for startup config content.
 	StartupConfigFileName = "startup-config"
 
-	// NodePersistencePVCRole is the LabelTopologyRole value stamped on regular (node-persistence)
-	// PVCs so that the PVC reconciler can filter them out from startup-config PVCs, which share
-	// the same LabelTopologyOwner and LabelTopologyNode labels.
-	NodePersistencePVCRole = "node"
 )
